@@ -1,7 +1,15 @@
 import { useRef, useState } from 'react';
-import { Animated, Platform } from 'react-native';
+import { Animated, Platform, NativeModules } from 'react-native';
 import { PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
-import * as Brightness from 'expo-brightness';
+
+// Brightness is iOS-mobile-only. No-op on Mac Catalyst.
+const _isMacCatalyst: boolean =
+  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
+
+let Brightness: any = null;
+if (!_isMacCatalyst) {
+  try { Brightness = require('expo-brightness'); } catch {}
+}
 
 interface GestureControlConfig {
   volume: number;
@@ -124,7 +132,9 @@ export const usePlayerGestureControls = (config: GestureControlConfig) => {
             const newBrightness = Math.max(0, Math.min(1, currentBrightness + brightnessChange));
 
             config.setBrightness!(newBrightness);
-            Brightness.setBrightnessAsync(newBrightness).catch(() => { });
+            if (Brightness) {
+              Brightness.setBrightnessAsync(newBrightness).catch(() => { });
+            }
 
             if (config.debugMode) {
               console.log(`[GestureControls] Device brightness set to: ${newBrightness} (Platform: ${Platform.OS}, Sensitivity: ${brightnessSensitivity})`);

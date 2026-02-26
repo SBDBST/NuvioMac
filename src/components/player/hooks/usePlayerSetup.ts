@@ -1,10 +1,19 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { StatusBar, Dimensions, AppState, InteractionManager, Platform } from 'react-native';
-import * as Brightness from 'expo-brightness';
-import * as ScreenOrientation from 'expo-screen-orientation';
+import { StatusBar, Dimensions, AppState, InteractionManager, Platform, NativeModules } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { logger } from '../../../utils/logger';
 import { useFocusEffect } from '@react-navigation/native';
+
+// Brightness and ScreenOrientation are iOS-mobile-only. No-op on Mac Catalyst.
+const _isMacCatalyst: boolean =
+  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
+
+let Brightness: any = null;
+let ScreenOrientation: any = null;
+if (!_isMacCatalyst) {
+  try { Brightness = require('expo-brightness'); } catch {}
+  try { ScreenOrientation = require('expo-screen-orientation'); } catch {}
+}
 
 interface PlayerSetupConfig {
     setScreenDimensions: (dim: any) => void;
@@ -72,8 +81,12 @@ export const usePlayerSetup = (config: PlayerSetupConfig) => {
         // Initialize volume (normalized 0-1 for cross-platform)
         setVolume(1.0);
 
-        // Initialize Brightness
+        // Initialize Brightness (skip on Mac Catalyst -- no display brightness API)
         const initBrightness = () => {
+            if (!Brightness) {
+                setBrightness(1.0);
+                return;
+            }
             InteractionManager.runAfterInteractions(async () => {
                 try {
                     const currentBrightness = await Brightness.getBrightnessAsync();
@@ -95,7 +108,7 @@ export const usePlayerSetup = (config: PlayerSetupConfig) => {
     const orientationLocked = useRef(false);
 
     useEffect(() => {
-        if (isOpeningAnimationComplete && !orientationLocked.current) {
+        if (isOpeningAnimationComplete && !orientationLocked.current && ScreenOrientation) {
             const task = InteractionManager.runAfterInteractions(() => {
                 ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)
                     .then(() => {
@@ -109,6 +122,7 @@ export const usePlayerSetup = (config: PlayerSetupConfig) => {
 
     useEffect(() => {
         return () => {
+            if (!ScreenOrientation) return;
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT)
                 .then(() => ScreenOrientation.unlockAsync())
                 .catch(() => { });

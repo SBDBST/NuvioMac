@@ -6,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import { useToast } from '../contexts/ToastContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

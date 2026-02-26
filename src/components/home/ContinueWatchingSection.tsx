@@ -26,7 +26,7 @@ import FastImage from '@d11/react-native-fast-image';
 import { useTheme } from '../../contexts/ThemeContext';
 import { storageService } from '../../services/storageService';
 import { logger } from '../../utils/logger';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { TraktService } from '../../services/traktService';
 import { SimklService } from '../../services/simklService';
 import { stremioService } from '../../services/stremioService';

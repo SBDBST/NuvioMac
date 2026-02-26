@@ -4,7 +4,7 @@ import { mmkvStorage } from '../services/mmkvStorage';
 import { StreamingContent, catalogService } from '../services/catalogService';
 import { tmdbService } from '../services/tmdbService';
 import { logger } from '../utils/logger';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import { useGenres } from '../contexts/GenreContext';
 import { useSettings, settingsEmitter } from './useSettings';
 import { isTmdbUrl } from '../utils/logoUtils';

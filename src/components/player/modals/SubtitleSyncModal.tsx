@@ -53,16 +53,14 @@ interface SubtitleSyncModalProps {
     primaryColor?: string;
 }
 
-// Safe haptic feedback
+// Safe haptic feedback (no-ops on Mac Catalyst)
 const triggerHaptic = async (style: 'light' | 'medium' = 'medium') => {
     try {
-        const Haptics = require('expo-haptics');
-        if (Haptics?.impactAsync) {
-            const feedbackStyle = style === 'light'
-                ? Haptics.ImpactFeedbackStyle.Light
-                : Haptics.ImpactFeedbackStyle.Medium;
-            await Haptics.impactAsync(feedbackStyle);
-        }
+        const Haptics = require('../../utils/haptics');
+        const feedbackStyle = style === 'light'
+            ? Haptics.ImpactFeedbackStyle.Light
+            : Haptics.ImpactFeedbackStyle.Medium;
+        await Haptics.impactAsync(feedbackStyle);
     } catch (e) { }
 };
 

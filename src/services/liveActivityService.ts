@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
 type LiveActivityModule = {
   startActivity: (state: any, config?: any) => string | undefined;
@@ -6,8 +6,12 @@ type LiveActivityModule = {
   stopActivity: (id: string, state: any) => void;
 };
 
+const _isMacCatalyst: boolean =
+  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
+
 function getLiveActivityModule(): LiveActivityModule | null {
-  if (Platform.OS !== 'ios') return null;
+  // Live Activities are iOS-mobile-only (no macOS equivalent)
+  if (Platform.OS !== 'ios' || _isMacCatalyst) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('expo-live-activity') as LiveActivityModule;

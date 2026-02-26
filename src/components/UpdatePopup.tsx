@@ -11,7 +11,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import AndroidUpdatePopup from './AndroidUpdatePopup';
 
 const { width, height } = Dimensions.get('window');

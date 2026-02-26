@@ -60,8 +60,23 @@ target 'Nuvio' do
     react_native_post_install(
       installer,
       config[:reactNativePath],
-      :mac_catalyst_enabled => false,
+      :mac_catalyst_enabled => true,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Exclude iOS-only pods from Mac Catalyst builds.
+    # These pods either don't support macOS or have no meaningful function there.
+    ios_only_pods = [
+      'google-cast-sdk',
+      'react-native-google-cast',
+    ]
+
+    installer.pods_project.targets.each do |target|
+      if ios_only_pods.include?(target.name)
+        target.build_configurations.each do |config|
+          config.build_settings['SUPPORTED_PLATFORMS'] = 'iphoneos iphonesimulator'
+        end
+      end
+    end
   end
 end

@@ -41,7 +41,7 @@ import {
 import { useCatalogContext } from '../contexts/CatalogContext';
 import { ThisWeekSection } from '../components/home/ThisWeekSection';
 import ContinueWatchingSection from '../components/home/ContinueWatchingSection';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import { tmdbService } from '../services/tmdbService';
 import { logger } from '../utils/logger';
 import { storageService } from '../services/storageService';
@@ -63,7 +63,16 @@ import homeStyles, { sharedStyles } from '../styles/homeStyles';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Theme } from '../contexts/ThemeContext';
 import { useLoading } from '../contexts/LoadingContext';
-import * as ScreenOrientation from 'expo-screen-orientation';
+import { NativeModules } from 'react-native';
+
+// ScreenOrientation is iOS-mobile-only. No-op on Mac Catalyst.
+const _isMacCatalyst: boolean =
+  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
+let ScreenOrientation: any = null;
+if (!_isMacCatalyst) {
+  try { ScreenOrientation = require('expo-screen-orientation'); } catch {}
+}
+
 import { mmkvStorage } from '../services/mmkvStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../contexts/ToastContext';
@@ -483,8 +492,8 @@ const HomeScreen = () => {
 
       statusBarConfig();
 
-      // Unlock orientation to allow free rotation
-      ScreenOrientation.unlockAsync().catch(() => { });
+      // Unlock orientation to allow free rotation (skip on Mac Catalyst)
+      ScreenOrientation?.unlockAsync?.().catch(() => { });
 
       return () => {
         // Stop trailer when screen loses focus (navigating to other screens)
@@ -575,9 +584,11 @@ const HomeScreen = () => {
       // Don't clear cache before player - causes broken images on return
       // FastImage's native libraries handle memory efficiently
 
-      // Lock orientation to landscape before navigation to prevent glitches
+      // Lock orientation to landscape before navigation to prevent glitches (skip on Mac Catalyst)
       try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        if (ScreenOrientation) {
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        }
 
         // Longer delay to ensure orientation is fully set before navigation
         await new Promise(resolve => setTimeout(resolve, 200));
