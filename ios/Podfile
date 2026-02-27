@@ -74,7 +74,7 @@ target 'Nuvio' do
     installer.pods_project.targets.each do |target|
       if ios_only_pods.include?(target.name)
         target.build_configurations.each do |config|
-          config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
+          config.build_settings['EXCLUDED_ARCHS[sdk=macosx*]'] = 'arm64 x86_64'
         end
       end
     end
