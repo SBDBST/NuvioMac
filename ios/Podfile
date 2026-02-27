@@ -74,7 +74,7 @@ target 'Nuvio' do
     installer.pods_project.targets.each do |target|
       if ios_only_pods.include?(target.name)
         target.build_configurations.each do |config|
-          config.build_settings['SUPPORTED_PLATFORMS'] = 'iphoneos iphonesimulator'
+          config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
         end
       end
     end
@@ -100,7 +100,8 @@ def patch_libzvbi_for_catalyst(installer)
   end
 
   catalyst_dir = zvbi_fw.join('ios-arm64_x86_64-maccatalyst')
-  if catalyst_dir.exist?
+  catalyst_framework = catalyst_dir.join('libzvbi.framework')
+  if catalyst_framework.exist?
     Pod::UI.message "[Catalyst] libzvbi maccatalyst slice already exists -- skipping"
     return
   end
@@ -112,6 +113,7 @@ def patch_libzvbi_for_catalyst(installer)
   end
 
   Pod::UI.message "[Catalyst] Patching libzvbi.xcframework: creating maccatalyst slice from macOS binary..."
+  FileUtils.rm_rf(catalyst_dir.to_s) if catalyst_dir.exist?
   FileUtils.cp_r(macos_dir.to_s, catalyst_dir.to_s)
 
   # Update the xcframework Info.plist to register the new slice.
