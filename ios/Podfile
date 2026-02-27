@@ -78,5 +78,70 @@ target 'Nuvio' do
         end
       end
     end
+
+    # Patch libzvbi.xcframework to add a Mac Catalyst slice.
+    # The upstream xcframework ships macos-arm64_x86_64 but no maccatalyst entry.
+    # libzvbi is a pure C teletext library with no platform-specific deps, so
+    # the macOS binary works identically under Catalyst. We copy it and update
+    # the plist so Xcode can find a matching slice for the Catalyst destination.
+    patch_libzvbi_for_catalyst(installer)
+  end
+end
+
+def patch_libzvbi_for_catalyst(installer)
+  require 'fileutils'
+
+  pods_root = installer.sandbox.root
+  zvbi_fw = pods_root.join('FFmpegKit', 'Sources', 'libzvbi.xcframework')
+
+  unless zvbi_fw.exist?
+    Pod::UI.warn "[Catalyst] libzvbi.xcframework not found at #{zvbi_fw} -- skipping patch"
+    return
+  end
+
+  catalyst_dir = zvbi_fw.join('ios-arm64_x86_64-maccatalyst')
+  if catalyst_dir.exist?
+    Pod::UI.message "[Catalyst] libzvbi maccatalyst slice already exists -- skipping"
+    return
+  end
+
+  macos_dir = zvbi_fw.join('macos-arm64_x86_64')
+  unless macos_dir.exist?
+    Pod::UI.warn "[Catalyst] libzvbi macos slice not found -- cannot create Catalyst slice"
+    return
+  end
+
+  Pod::UI.message "[Catalyst] Patching libzvbi.xcframework: creating maccatalyst slice from macOS binary..."
+  FileUtils.cp_r(macos_dir.to_s, catalyst_dir.to_s)
+
+  # Update the xcframework Info.plist to register the new slice.
+  plist_path = zvbi_fw.join('Info.plist')
+  plist_content = File.read(plist_path)
+
+  catalyst_entry = <<~PLIST
+  \t\t<dict>
+  \t\t\t<key>BinaryPath</key>
+  \t\t\t<string>libzvbi.framework/libzvbi</string>
+  \t\t\t<key>LibraryIdentifier</key>
+  \t\t\t<string>ios-arm64_x86_64-maccatalyst</string>
+  \t\t\t<key>LibraryPath</key>
+  \t\t\t<string>libzvbi.framework</string>
+  \t\t\t<key>SupportedArchitectures</key>
+  \t\t\t<array>
+  \t\t\t\t<string>arm64</string>
+  \t\t\t\t<string>x86_64</string>
+  \t\t\t</array>
+  \t\t\t<key>SupportedPlatform</key>
+  \t\t\t<string>ios</string>
+  \t\t\t<key>SupportedPlatformVariant</key>
+  \t\t\t<string>maccatalyst</string>
+  \t\t</dict>
+  PLIST
+
+  # Insert before the closing </array> of AvailableLibraries.
+  unless plist_content.include?('ios-arm64_x86_64-maccatalyst')
+    plist_content.sub!(%r{(\s*</array>\s*<key>CFBundlePackageType</key>)}, "\n#{catalyst_entry}\\1")
+    File.write(plist_path, plist_content)
+    Pod::UI.message "[Catalyst] libzvbi.xcframework patched successfully"
   end
 end
