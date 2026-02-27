@@ -11,35 +11,16 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		2AA769395C1242F225F875AF /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E007C0BAC8C453623E81663 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		730F1CDE2F24B27100EF7E51 /* Color+hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8034143A77A946B5A793F967 /* Color+hex.swift */; };
-		730F1CDF2F24B27100EF7E51 /* Date+toTimerInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A48D8A298DD48928E8D0A02 /* Date+toTimerInterval.swift */; };
-		730F1CE02F24B27100EF7E51 /* Image+dynamic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26957CDD392E4E9390811D0D /* Image+dynamic.swift */; };
-		730F1CE12F24B27100EF7E51 /* LiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F448294A36E433E924078C1 /* LiveActivityView.swift */; };
-		730F1CE22F24B27100EF7E51 /* LiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD48662BB71E4C9C9E340289 /* LiveActivityWidget.swift */; };
-		730F1CE32F24B27100EF7E51 /* LiveActivityWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83D742B36224176A0AB3B25 /* LiveActivityWidgetBundle.swift */; };
-		730F1CE42F24B27100EF7E51 /* View+applyIfPresent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324373F393774A9CA40DE22E /* View+applyIfPresent.swift */; };
-		730F1CE52F24B27100EF7E51 /* View+applyWidgetURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373D1473F5A74CBC9DBD108B /* View+applyWidgetURL.swift */; };
-		730F1CE62F24B27100EF7E51 /* ViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3396D68881EF486E99FD480A /* ViewHelpers.swift */; };
-		730F1CE72F24B27100EF7E51 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0F1D0037D1F24E60BDB57628 /* Assets.xcassets */; };
 		9FBA88F42E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerViewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA88F32E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerViewManager.swift */; };
 		9FBA88F52E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA88F12E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerModule.swift */; };
 		9FBA88F62E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA88F02E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerManager.m */; };
 		9FBA88F72E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA88F22E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerView.swift */; };
 		A0892AA96024D9EF7CA87A8A /* libPods-Nuvio.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 349BFD3B214640DED8541999 /* libPods-Nuvio.a */; };
+		ABF248832F51D08E005C571A /* PlatformInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF248812F51D08E005C571A /* PlatformInfo.swift */; };
+		ABF248842F51D08E005C571A /* PlatformInfoBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = ABF248822F51D08E005C571A /* PlatformInfoBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		F285A1620F5847BA863124AF /* LiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF8716173E0148BD82B233B7 /* LiveActivity.appex */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		55A0DD628D7F4F4F88B4A001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 0EA489F2BF6143F1BA7B8485;
-			remoteInfo = LiveActivity;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		13CD9594FB5C4FE4A6794089 /* Embed Foundation Extensions */ = {
@@ -58,7 +39,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				F285A1620F5847BA863124AF /* LiveActivity.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -121,11 +101,12 @@
 		9FBA88F32E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerViewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../KSPlayer/RNBridge/KSPlayerViewManager.swift; sourceTree = "<group>"; };
 		A83D742B36224176A0AB3B25 /* LiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = LiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Nuvio/SplashScreen.storyboard; sourceTree = "<group>"; };
+		ABF248812F51D08E005C571A /* PlatformInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformInfo.swift; sourceTree = "<group>"; };
+		ABF248822F51D08E005C571A /* PlatformInfoBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PlatformInfoBridge.m; sourceTree = "<group>"; };
 		AD48662BB71E4C9C9E340289 /* LiveActivityWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = LiveActivityWidget.swift; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		DAD634845937EAF8D64F20FC /* Pods-Nuvio.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Nuvio.debug.xcconfig"; path = "Target Support Files/Pods-Nuvio/Pods-Nuvio.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		EF8716173E0148BD82B233B7 /* LiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 9; includeInIndex = 0; path = LiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Nuvio/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Nuvio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Nuvio-Bridging-Header.h"; path = "Nuvio/Nuvio-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -139,19 +120,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C105694FF46449959CE16947 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		13B07FAE1A68108700A75B9A /* Nuvio */ = {
 			isa = PBXGroup;
 			children = (
+				ABF248812F51D08E005C571A /* PlatformInfo.swift */,
+				ABF248822F51D08E005C571A /* PlatformInfoBridge.m */,
 				73BB213C2E9EEAC700EC03F8 /* NuvioRelease.entitlements */,
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* Nuvio-Bridging-Header.h */,
@@ -223,7 +199,6 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Nuvio.app */,
-				EF8716173E0148BD82B233B7 /* LiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -298,23 +273,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		0EA489F2BF6143F1BA7B8485 /* LiveActivity */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = C95083D445BA485B82D2FFBC /* Build configuration list for PBXNativeTarget "LiveActivity" */;
-			buildPhases = (
-				6E9A0429F8E74948A82DEFF5 /* Sources */,
-				C105694FF46449959CE16947 /* Frameworks */,
-				1E668E0B92C34E73AECDBE1A /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = LiveActivity;
-			productName = LiveActivity;
-			productReference = EF8716173E0148BD82B233B7 /* LiveActivity.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		13B07F861A680F5B00A75B9A /* Nuvio */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Nuvio" */;
@@ -337,7 +295,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				8410CAE82E604DD1A187EDA2 /* PBXTargetDependency */,
 			);
 			name = Nuvio;
 			productName = Nuvio;
@@ -352,15 +309,8 @@
 			attributes = {
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
-					0EA489F2BF6143F1BA7B8485 = {
-						DevelopmentTeam = 8QBDZ766S3;
-						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
-					};
 					13B07F861A680F5B00A75B9A = {
-						DevelopmentTeam = 8QBDZ766S3;
 						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -378,7 +328,6 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Nuvio */,
-				0EA489F2BF6143F1BA7B8485 /* LiveActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -392,14 +341,6 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				0FFC28FB1FEA74CCFA112268 /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		1E668E0B92C34E73AECDBE1A /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				730F1CE72F24B27100EF7E51 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -626,6 +567,8 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				9FBA88F42E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerViewManager.swift in Sources */,
+				ABF248832F51D08E005C571A /* PlatformInfo.swift in Sources */,
+				ABF248842F51D08E005C571A /* PlatformInfoBridge.m in Sources */,
 				9FBA88F52E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerModule.swift in Sources */,
 				9FBA88F62E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerManager.m in Sources */,
 				9FBA88F72E86ECD700892850 /* ../KSPlayer/RNBridge/KSPlayerView.swift in Sources */,
@@ -633,31 +576,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6E9A0429F8E74948A82DEFF5 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				730F1CDE2F24B27100EF7E51 /* Color+hex.swift in Sources */,
-				730F1CDF2F24B27100EF7E51 /* Date+toTimerInterval.swift in Sources */,
-				730F1CE02F24B27100EF7E51 /* Image+dynamic.swift in Sources */,
-				730F1CE12F24B27100EF7E51 /* LiveActivityView.swift in Sources */,
-				730F1CE22F24B27100EF7E51 /* LiveActivityWidget.swift in Sources */,
-				730F1CE32F24B27100EF7E51 /* LiveActivityWidgetBundle.swift in Sources */,
-				730F1CE42F24B27100EF7E51 /* View+applyIfPresent.swift in Sources */,
-				730F1CE52F24B27100EF7E51 /* View+applyWidgetURL.swift in Sources */,
-				730F1CE62F24B27100EF7E51 /* ViewHelpers.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		8410CAE82E604DD1A187EDA2 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 0EA489F2BF6143F1BA7B8485 /* LiveActivity */;
-			targetProxy = 55A0DD628D7F4F4F88B4A001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -667,10 +586,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Nuvio/Nuvio.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8QBDZ766S3;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = LNJCLA9XLT;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -682,6 +602,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SDKROOT)/usr/lib/swift",
+					"$(SDKROOT)/System/iOSSupport/usr/lib/swift",
+					"$(inherited)",
+				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -689,8 +614,10 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.hub;
+				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sbdbst.nuvio.mac;
 				PRODUCT_NAME = Nuvio;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Nuvio/Nuvio-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -707,15 +634,21 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Nuvio/NuvioRelease.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8QBDZ766S3;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = LNJCLA9XLT;
 				INFOPLIST_FILE = Nuvio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SDKROOT)/usr/lib/swift",
+					"$(SDKROOT)/System/iOSSupport/usr/lib/swift",
+					"$(inherited)",
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
@@ -724,8 +657,10 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.hub;
+				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sbdbst.nuvio.mac;
 				PRODUCT_NAME = Nuvio;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Nuvio/Nuvio-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -733,33 +668,6 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
-		};
-		/* LiveActivity Debug */
-	3DCEA1FBF99E46F58A7150CC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = LiveActivity/LiveActivity.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
-				DEVELOPMENT_TEAM = 8QBDZ766S3;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				MARKETING_VERSION = 1.3.6;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.hub.LiveActivity;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -789,6 +697,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -852,6 +761,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -879,33 +789,6 @@
 			};
 			name = Release;
 		};
-		/* LiveActivity Release */
-	E4108F64486C48E192EAA45D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = LiveActivity/LiveActivity.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
-				DEVELOPMENT_TEAM = 8QBDZ766S3;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LiveActivity;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				MARKETING_VERSION = 1.3.6;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.nuvio.hub.LiveActivity;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -923,15 +806,6 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		C95083D445BA485B82D2FFBC /* Build configuration list for PBXNativeTarget "LiveActivity" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				3DCEA1FBF99E46F58A7150CC /* Debug */,
-				E4108F64486C48E192EAA45D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
