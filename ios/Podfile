@@ -130,6 +130,25 @@ target 'Nuvio' do
       end
     end
 
+    # (c) Patch the auto-generated ExpoModulesProvider.swift to wrap iOS-only module
+    # imports/registrations in #if !targetEnvironment(macCatalyst) guards.
+    # This file is regenerated every pod install, so the patch must run every time.
+    expo_provider = File.join(installer.sandbox.root, 'Target Support Files', 'Pods-Nuvio', 'ExpoModulesProvider.swift')
+    if File.exist?(expo_provider)
+      content = File.read(expo_provider)
+      ios_only_modules = ['ExpoLiveActivity']
+      ios_only_modules.each do |mod|
+        # Wrap 'import ModuleName' line
+        if content.include?("import #{mod}") && !content.include?("#if !targetEnvironment(macCatalyst)\nimport #{mod}")
+          content.gsub!(/^import #{mod}$/, "#if !targetEnvironment(macCatalyst)\nimport #{mod}\n#endif")
+        end
+        # Wrap the module class reference in the provider list (e.g. ExpoLiveActivityModule.self)
+        content.gsub!(/^(\s*)(#{mod}Module\.self,?)$/) { "#{$1}#if !targetEnvironment(macCatalyst)\n#{$1}#{$2}\n#{$1}#endif" }
+      end
+      File.write(expo_provider, content)
+      Pod::UI.message "[Catalyst] Patched ExpoModulesProvider.swift to exclude iOS-only modules"
+    end
+
     # Patch libzvbi.xcframework to add a Mac Catalyst slice.
     # The upstream xcframework ships macos-arm64_x86_64 but no maccatalyst entry.
     # libzvbi is a pure C teletext library with no platform-specific deps, so
