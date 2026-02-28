@@ -74,7 +74,18 @@ target 'Nuvio' do
     installer.pods_project.targets.each do |target|
       if ios_only_pods.include?(target.name)
         target.build_configurations.each do |config|
-          config.build_settings['EXCLUDED_ARCHS[sdk=macosx*]'] = 'arm64 x86_64'
+          # Write directly to the xcconfig file -- target-level build settings
+          # are overridden by CocoaPods-generated xcconfigs, so we must patch
+          # the xcconfig itself to make EXCLUDED_ARCHS stick.
+          xcconfig_ref = config.base_configuration_reference
+          next unless xcconfig_ref
+          xcconfig_path = xcconfig_ref.real_path
+          next unless File.exist?(xcconfig_path)
+          xcconfig = File.read(xcconfig_path)
+          unless xcconfig.include?('EXCLUDED_ARCHS[sdk=macosx*]')
+            xcconfig += "\nEXCLUDED_ARCHS[sdk=macosx*] = arm64 x86_64\n"
+            File.write(xcconfig_path, xcconfig)
+          end
         end
       end
     end
