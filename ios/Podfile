@@ -75,7 +75,12 @@ target 'Nuvio' do
       'ExpoLiveActivity',
     ]
 
-    # (a) Patch each excluded pod's xcconfig to skip all archs on macOS SDK (used by Catalyst).
+    # (a) Prevent excluded pods from compiling any source on Catalyst.
+    # We use EXCLUDED_SOURCE_FILE_NAMES rather than EXCLUDED_ARCHS because the latter
+    # produces no .a file at all, which causes downstream build phases (e.g.
+    # ExtractAppIntentsMetadata) to fail looking for the missing binary.
+    # EXCLUDED_SOURCE_FILE_NAMES lets the target "build" an empty static library that
+    # satisfies all build phase and linker expectations.
     installer.pods_project.targets.each do |target|
       if ios_only_pods.include?(target.name)
         target.build_configurations.each do |config|
@@ -84,8 +89,8 @@ target 'Nuvio' do
           xcconfig_path = xcconfig_ref.real_path
           next unless File.exist?(xcconfig_path)
           xcconfig = File.read(xcconfig_path)
-          unless xcconfig.include?('EXCLUDED_ARCHS[sdk=macosx*]')
-            xcconfig += "\nEXCLUDED_ARCHS[sdk=macosx*] = arm64 x86_64\n"
+          unless xcconfig.include?('EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]')
+            xcconfig += "\nEXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*] = *.swift *.m *.mm *.c *.cpp *.cc\n"
             File.write(xcconfig_path, xcconfig)
           end
         end
