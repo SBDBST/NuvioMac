@@ -65,18 +65,20 @@ target 'Nuvio' do
     )
 
     # Exclude iOS-only pods from Mac Catalyst builds.
-    # These pods either don't support macOS or have no meaningful function there.
+    # These pods use frameworks/APIs unavailable on Catalyst (ActivityKit, Google Cast, etc.).
+    # We must both (a) prevent their compilation and (b) strip them from the main target's
+    # linker flags, otherwise we trade compile errors for link errors.
     ios_only_pods = [
       'google-cast-sdk',
+      'google-cast-sdk-GoogleCast',
       'react-native-google-cast',
+      'ExpoLiveActivity',
     ]
 
+    # (a) Patch each excluded pod's xcconfig to skip all archs on macOS SDK (used by Catalyst).
     installer.pods_project.targets.each do |target|
       if ios_only_pods.include?(target.name)
         target.build_configurations.each do |config|
-          # Write directly to the xcconfig file -- target-level build settings
-          # are overridden by CocoaPods-generated xcconfigs, so we must patch
-          # the xcconfig itself to make EXCLUDED_ARCHS stick.
           xcconfig_ref = config.base_configuration_reference
           next unless xcconfig_ref
           xcconfig_path = xcconfig_ref.real_path
@@ -86,6 +88,32 @@ target 'Nuvio' do
             xcconfig += "\nEXCLUDED_ARCHS[sdk=macosx*] = arm64 x86_64\n"
             File.write(xcconfig_path, xcconfig)
           end
+        end
+      end
+    end
+
+    # (b) Strip excluded pods from the main target's linker flags for Catalyst builds.
+    # The Pods-Nuvio xcconfig has OTHER_LDFLAGS listing every pod library. We create a
+    # conditional OTHER_LDFLAGS[sdk=macosx*] that omits the excluded ones.
+    ios_only_lib_flags = ios_only_pods.map { |name| "-l\"#{name}\"" }
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'Pods-Nuvio'
+      target.build_configurations.each do |config|
+        xcconfig_ref = config.base_configuration_reference
+        next unless xcconfig_ref
+        xcconfig_path = xcconfig_ref.real_path
+        next unless File.exist?(xcconfig_path)
+        xcconfig = File.read(xcconfig_path)
+        next if xcconfig.include?('OTHER_LDFLAGS[sdk=macosx*]')
+
+        # Find the existing OTHER_LDFLAGS line and create a filtered version.
+        if xcconfig =~ /^OTHER_LDFLAGS\s*=\s*(.+)$/
+          original_flags = $1
+          filtered_flags = original_flags
+          ios_only_lib_flags.each { |flag| filtered_flags = filtered_flags.gsub(flag, '') }
+          filtered_flags = filtered_flags.gsub(/\s+/, ' ').strip
+          xcconfig += "\nOTHER_LDFLAGS[sdk=macosx*] = #{filtered_flags}\n"
+          File.write(xcconfig_path, xcconfig)
         end
       end
     end
