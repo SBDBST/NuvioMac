@@ -96,6 +96,12 @@ target 'Nuvio' do
     # The Pods-Nuvio xcconfig has OTHER_LDFLAGS listing every pod library. We create a
     # conditional OTHER_LDFLAGS[sdk=macosx*] that omits the excluded ones.
     ios_only_lib_flags = ios_only_pods.map { |name| "-l\"#{name}\"" }
+    # Also strip framework references for excluded pods and iOS-only system frameworks.
+    ios_only_framework_flags = [
+      '-framework "GoogleCast"',
+      '-framework "CoreTelephony"',
+      '-framework "MobileCoreServices"',
+    ]
     installer.pods_project.targets.each do |target|
       next unless target.name == 'Pods-Nuvio'
       target.build_configurations.each do |config|
@@ -111,6 +117,7 @@ target 'Nuvio' do
           original_flags = $1
           filtered_flags = original_flags
           ios_only_lib_flags.each { |flag| filtered_flags = filtered_flags.gsub(flag, '') }
+          ios_only_framework_flags.each { |flag| filtered_flags = filtered_flags.gsub(flag, '') }
           filtered_flags = filtered_flags.gsub(/\s+/, ' ').strip
           xcconfig += "\nOTHER_LDFLAGS[sdk=macosx*] = #{filtered_flags}\n"
           File.write(xcconfig_path, xcconfig)
