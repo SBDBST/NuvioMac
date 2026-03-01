@@ -83,12 +83,13 @@ public class AppDelegate: ExpoAppDelegate {
     let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)
 
-    // Tab switching
+    // Tab switching -- order matches the tab bar: Home, Library, Search, Downloads, Settings
     let tabChildren: [UIKeyCommand] = [
       UIKeyCommand(title: "Home", action: #selector(handleTab1), input: "1", modifierFlags: .command),
-      UIKeyCommand(title: "Search", action: #selector(handleTab2), input: "2", modifierFlags: .command),
-      UIKeyCommand(title: "Library", action: #selector(handleTab3), input: "3", modifierFlags: .command),
+      UIKeyCommand(title: "Library", action: #selector(handleTab2), input: "2", modifierFlags: .command),
+      UIKeyCommand(title: "Search", action: #selector(handleTab3), input: "3", modifierFlags: .command),
       UIKeyCommand(title: "Downloads", action: #selector(handleTab4), input: "4", modifierFlags: .command),
+      UIKeyCommand(title: "Settings", action: #selector(handleTab5), input: "5", modifierFlags: .command),
     ]
     let tabMenu = UIMenu(title: "Tabs", options: .displayInline, children: tabChildren)
     builder.insertChild(tabMenu, atEndOfMenu: .view)
@@ -101,6 +102,7 @@ public class AppDelegate: ExpoAppDelegate {
   @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
   @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }
   @objc func handleTab4() { PlatformInfo.shared?.emitKeyCommand("tab4") }
+  @objc func handleTab5() { PlatformInfo.shared?.emitKeyCommand("tab5") }
   #endif
 }
 

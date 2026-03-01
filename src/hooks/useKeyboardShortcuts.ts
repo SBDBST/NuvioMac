@@ -24,7 +24,7 @@ function getEmitter(): NativeEventEmitter | null {
 
 type CommandId =
   | 'search' | 'settings' | 'back'
-  | 'tab1' | 'tab2' | 'tab3' | 'tab4';
+  | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5';
 
 /**
  * Listen for a specific keyboard shortcut by command ID.

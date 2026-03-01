@@ -361,34 +361,46 @@ const OnboardingScreen = () => {
 
           {/* Button and Swipe indicator with crossfade based on scroll */}
           <View style={styles.footerButtonContainer}>
-            {/* Swipe/Click Indicator - fades out on last slide */}
-            <Animated.View style={[styles.swipeIndicator, styles.absoluteFill, swipeOpacityStyle]}>
-              {isMacCatalyst ? (
-                <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
-                  <Text style={styles.nextButtonText}>Next</Text>
-                  <Text style={styles.swipeArrow}>→</Text>
+            {isMacCatalyst ? (
+              /* Mac Catalyst: simple clickable buttons, no swipe/crossfade overlay */
+              currentIndex < onboardingData.length - 1 ? (
+                <TouchableOpacity onPress={handleNext} style={styles.nextButtonMac}>
+                  <Text style={styles.nextButtonMacText}>Next</Text>
+                  <Text style={styles.nextButtonMacArrow}>→</Text>
                 </TouchableOpacity>
               ) : (
-                <>
+                <TouchableOpacity
+                  onPress={handleGetStarted}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  activeOpacity={1}
+                >
+                  <Animated.View style={[styles.button, buttonStyle]}>
+                    <Text style={styles.buttonText}>Get Started</Text>
+                  </Animated.View>
+                </TouchableOpacity>
+              )
+            ) : (
+              /* iOS: original swipe-based crossfade */
+              <>
+                <Animated.View style={[styles.swipeIndicator, styles.absoluteFill, swipeOpacityStyle]}>
                   <Text style={styles.swipeText}>Swipe to continue</Text>
                   <Text style={styles.swipeArrow}>→</Text>
-                </>
-              )}
-            </Animated.View>
-
-            {/* Get Started Button - fades in on last slide */}
-            <Animated.View style={[styles.absoluteFill, buttonOpacityStyle]}>
-              <TouchableOpacity
-                onPress={handleGetStarted}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                activeOpacity={1}
-              >
-                <Animated.View style={[styles.button, buttonStyle]}>
-                  <Text style={styles.buttonText}>Get Started</Text>
                 </Animated.View>
-              </TouchableOpacity>
-            </Animated.View>
+                <Animated.View style={[styles.absoluteFill, buttonOpacityStyle]}>
+                  <TouchableOpacity
+                    onPress={handleGetStarted}
+                    onPressIn={handlePressIn}
+                    onPressOut={handlePressOut}
+                    activeOpacity={1}
+                  >
+                    <Animated.View style={[styles.button, buttonStyle]}>
+                      <Text style={styles.buttonText}>Get Started</Text>
+                    </Animated.View>
+                  </TouchableOpacity>
+                </Animated.View>
+              </>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -523,18 +535,24 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  nextButton: {
+  nextButtonMac: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
     paddingVertical: 18,
   },
-  nextButtonText: {
-    fontSize: 15,
+  nextButtonMacText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+  nextButtonMacArrow: {
+    fontSize: 20,
+    color: '#FFFFFF',
   },
 });
 

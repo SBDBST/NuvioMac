@@ -17,14 +17,16 @@ export const GlobalKeyboardShortcuts: React.FC<{ children: React.ReactNode }> = 
 const ShortcutHandler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigation = useNavigation<NavigationProp<any>>();
 
+  // Tab order: Home, Library, Search, Downloads, Settings
   const handlers = useCallback(() => ({
-    search: () => { try { navigation.navigate('Search'); } catch {} },
-    settings: () => { try { navigation.navigate('Settings'); } catch {} },
+    search: () => { try { navigation.navigate('MainTabs', { screen: 'Search' }); } catch {} },
+    settings: () => { try { navigation.navigate('MainTabs', { screen: 'Settings' }); } catch {} },
     back: () => { try { navigation.goBack(); } catch {} },
     tab1: () => { try { navigation.navigate('MainTabs', { screen: 'Home' }); } catch {} },
-    tab2: () => { try { navigation.navigate('MainTabs', { screen: 'Search' }); } catch {} },
-    tab3: () => { try { navigation.navigate('MainTabs', { screen: 'Library' }); } catch {} },
+    tab2: () => { try { navigation.navigate('MainTabs', { screen: 'Library' }); } catch {} },
+    tab3: () => { try { navigation.navigate('MainTabs', { screen: 'Search' }); } catch {} },
     tab4: () => { try { navigation.navigate('MainTabs', { screen: 'Downloads' }); } catch {} },
+    tab5: () => { try { navigation.navigate('MainTabs', { screen: 'Settings' }); } catch {} },
   }), [navigation]);
 
   useKeyCommands(handlers());
