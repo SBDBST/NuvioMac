@@ -19,6 +19,8 @@ import { PostHogProvider, usePostHog } from 'posthog-react-native';
 import { ScrollToTopProvider, useScrollToTopEmitter } from '../contexts/ScrollToTopContext';
 import { telemetryService, TELEMETRY_EVENTS } from '../services/telemetryService';
 import { useTranslation } from 'react-i18next';
+import { isMacCatalyst } from '../utils/platform';
+import { SWITCH_TAB_EVENT } from '../components/GlobalKeyboardShortcuts';
 
 // Optional iOS Glass effect (expo-glass-effect) with safe fallback
 let GlassViewComp: any = null;
@@ -566,6 +568,23 @@ const MainTabs = () => {
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
   const lastTapRef = useRef<Record<string, number>>({});
 
+  // ─── Catalyst keyboard shortcut tab switching ───────────────────
+  // Store a reference to the tab navigator's navigation object so we can
+  // call jumpTo from outside the navigator's render tree.
+  const tabNavRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!isMacCatalyst) return;
+    const sub = DeviceEventEmitter.addListener(SWITCH_TAB_EVENT, (tabName: string) => {
+      try {
+        tabNavRef.current?.jumpTo(tabName);
+      } catch (e) {
+        if (__DEV__) console.warn('[Catalyst] Tab switch failed:', tabName, e);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
       setDimensions(window);
@@ -938,6 +957,11 @@ const MainTabs = () => {
         <IOSTab.Navigator
           key={`ios-tabs-${downloadsEnabled ? 'with-dl' : 'no-dl'}`}
           initialRouteName="Home"
+          screenListeners={({ navigation }: { navigation: any }) => {
+            // Capture the tab navigator's navigation object for keyboard shortcuts
+            tabNavRef.current = navigation;
+            return {};
+          }}
           // Native tab bar handles its own visuals; keep options minimal
           screenOptions={{
             headerShown: false,

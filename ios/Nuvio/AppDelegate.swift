@@ -46,6 +46,19 @@ public class AppDelegate: ExpoAppDelegate {
       launchOptions: launchOptions)
 #endif
 
+    // Set Mac Catalyst window constraints after scene connection
+    #if targetEnvironment(macCatalyst)
+    DispatchQueue.main.async { [weak self] in
+      if let windowScene = self?.window?.windowScene {
+        windowScene.sizeRestrictions?.minimumSize = CGSize(width: 900, height: 600)
+        windowScene.title = "Nuvio"
+        // Enable full-size content for a more native Mac feel
+        windowScene.titlebar?.titleVisibility = .hidden
+        windowScene.titlebar?.toolbar = nil
+      }
+    }
+    #endif
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
