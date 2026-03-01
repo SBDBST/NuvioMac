@@ -117,12 +117,16 @@ target 'Nuvio' do
         next if xcconfig.include?('OTHER_LDFLAGS[sdk=macosx*]')
 
         # Find the existing OTHER_LDFLAGS line and create a filtered version.
+        # IMPORTANT: We strip $(inherited) from the conditional so it fully REPLACES
+        # the base OTHER_LDFLAGS for the macosx SDK, rather than extending it.
+        # Without this, $(inherited) pulls in the unfiltered base flags, re-adding
+        # the very libraries we're trying to exclude.
         if xcconfig =~ /^OTHER_LDFLAGS\s*=\s*(.+)$/
           original_flags = $1
           filtered_flags = original_flags
           ios_only_lib_flags.each { |flag| filtered_flags = filtered_flags.gsub(flag, '') }
           ios_only_framework_flags.each { |flag| filtered_flags = filtered_flags.gsub(flag, '') }
-          filtered_flags = filtered_flags.gsub(/\s+/, ' ').strip
+          filtered_flags = filtered_flags.gsub('$(inherited)', '').gsub(/\s+/, ' ').strip
           xcconfig += "\nOTHER_LDFLAGS[sdk=macosx*] = #{filtered_flags}\n"
           File.write(xcconfig_path, xcconfig)
         end
