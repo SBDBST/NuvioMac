@@ -47,6 +47,7 @@ import { AccountProvider, useAccount } from './src/contexts/AccountContext';
 import { ToastProvider } from './src/contexts/ToastContext';
 import { mmkvStorage } from './src/services/mmkvStorage';
 import { CampaignManager } from './src/components/promotions/CampaignManager';
+import { GlobalKeyboardShortcuts } from './src/components/GlobalKeyboardShortcuts';
 import { isErrorReportingEnabledSync } from './src/services/telemetryService';
 import { supabaseSyncService } from './src/services/supabaseSyncService';
 
@@ -263,7 +264,11 @@ const ThemedApp = () => {
             <View style={[styles.container, { backgroundColor: currentTheme.colors.darkBackground }]}>
               <StatusBar style="light" />
               {!isAppReady && <SplashScreen onFinish={handleSplashComplete} />}
-              {shouldShowApp && <AppNavigator initialRouteName={initialRouteName} />}
+              {shouldShowApp && (
+                <GlobalKeyboardShortcuts>
+                  <AppNavigator initialRouteName={initialRouteName} />
+                </GlobalKeyboardShortcuts>
+              )}
               <UpdatePopup
                 visible={showUpdatePopup}
                 updateInfo={updateInfo}

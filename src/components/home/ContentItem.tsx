@@ -14,6 +14,8 @@ import { storageService } from '../../services/storageService';
 import { TraktService } from '../../services/traktService';
 import { useTraktContext } from '../../contexts/TraktContext';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useDesktopHover } from '../../hooks/useDesktopInteraction';
+import { isMacCatalyst } from '../../utils/platform';
 
 interface ContentItemProps {
   item: StreamingContent;
@@ -179,6 +181,9 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
     }
   }, [item.id, item.type, onPress]);
 
+  // Desktop hover effect
+  const [isHovered, hoverStyle, hoverHandlers] = useDesktopHover(1.05);
+
   const handleOptionSelect = useCallback(async (option: string) => {
     switch (option) {
       case 'library':
@@ -303,10 +308,18 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   return (
     <>
-      <Animated.View style={[styles.itemContainer, { width: finalWidth }]} entering={FadeIn.duration(300)}>
+      <Animated.View
+        style={[styles.itemContainer, { width: finalWidth }, hoverStyle]}
+        entering={FadeIn.duration(300)}
+        {...(isMacCatalyst ? hoverHandlers : {})}
+      >
         <TouchableOpacity
-          style={[styles.contentItem, { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius }]}
-          activeOpacity={0.7}
+          style={[
+            styles.contentItem,
+            { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
+            isHovered && { borderColor: 'rgba(255,255,255,0.35)' },
+          ]}
+          activeOpacity={isMacCatalyst ? 1 : 0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={300}
@@ -412,6 +425,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.15)',
     marginBottom: 8,
+    cursor: 'pointer' as any,
   },
   contentItemContainer: {
     width: '100%',

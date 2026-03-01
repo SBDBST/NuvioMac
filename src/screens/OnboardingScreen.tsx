@@ -26,6 +26,8 @@ import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { mmkvStorage } from '../services/mmkvStorage';
 import { ShapeAnimation } from '../components/onboarding/ShapeAnimation';
+import { isMacCatalyst } from '../utils/platform';
+import { useArrowKeys } from '../hooks/useKeyboardShortcuts';
 
 const { width, height } = Dimensions.get('window');
 
@@ -208,6 +210,24 @@ const OnboardingScreen = () => {
     }
   };
 
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      flatListRef.current?.scrollToOffset({
+        offset: prevIndex * width,
+        animated: true
+      });
+    }
+  };
+
+  // Arrow key navigation for desktop
+  useArrowKeys({
+    onRight: handleNext,
+    onLeft: handlePrev,
+    onEnter: currentIndex === onboardingData.length - 1 ? handleGetStarted : handleNext,
+    onEscape: handleSkip,
+  });
+
   const handleSkip = () => {
     (async () => {
       try {
@@ -350,10 +370,19 @@ const OnboardingScreen = () => {
 
           {/* Button and Swipe indicator with crossfade based on scroll */}
           <View style={styles.footerButtonContainer}>
-            {/* Swipe Indicator - fades out on last slide */}
+            {/* Swipe/Click Indicator - fades out on last slide */}
             <Animated.View style={[styles.swipeIndicator, styles.absoluteFill, swipeOpacityStyle]}>
-              <Text style={styles.swipeText}>Swipe to continue</Text>
-              <Text style={styles.swipeArrow}>→</Text>
+              {isMacCatalyst ? (
+                <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
+                  <Text style={styles.nextButtonText}>Next</Text>
+                  <Text style={styles.swipeArrow}>→</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <Text style={styles.swipeText}>Swipe to continue</Text>
+                  <Text style={styles.swipeArrow}>→</Text>
+                </>
+              )}
             </Animated.View>
 
             {/* Get Started Button - fades in on last slide */}
@@ -395,6 +424,7 @@ const styles = StyleSheet.create({
   skipButton: {
     paddingVertical: 8,
     paddingHorizontal: 4,
+    cursor: 'pointer' as any,
   },
   skipText: {
     fontSize: 15,
@@ -468,6 +498,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    cursor: 'pointer' as any,
   },
   buttonText: {
     fontSize: 16,
@@ -502,6 +533,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 18,
+    cursor: 'pointer' as any,
+  },
+  nextButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+    letterSpacing: 0.3,
   },
 });
 

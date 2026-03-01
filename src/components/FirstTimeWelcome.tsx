@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 25,
     gap: 8,
+    cursor: 'pointer' as any,
   },
   buttonText: {
     color: 'white',
