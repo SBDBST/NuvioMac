@@ -1,7 +1,7 @@
 /**
  * Global keyboard shortcuts for NuvioMac.
  *
- * Uses the native KeyCommandBridge module to receive keyboard shortcut
+ * Uses the PlatformInfo native module to receive keyboard shortcut
  * events from the Mac menu bar. Only active on Mac Catalyst.
  */
 import React, { useCallback } from 'react';

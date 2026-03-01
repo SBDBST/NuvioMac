@@ -79,7 +79,6 @@ public class AppDelegate: ExpoAppDelegate {
       UIKeyCommand(title: "Search", action: #selector(handleCmdK), input: "k", modifierFlags: .command),
       UIKeyCommand(title: "Preferences...", action: #selector(handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(handleCmdBack), input: "[", modifierFlags: .command),
-      UIKeyCommand(title: "Fullscreen", action: #selector(handleCmdF), input: "f", modifierFlags: [.command, .control]),
     ]
     let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)
@@ -95,14 +94,13 @@ public class AppDelegate: ExpoAppDelegate {
     builder.insertChild(tabMenu, atEndOfMenu: .view)
   }
 
-  @objc func handleCmdK() { KeyCommandBridge.shared?.emitKeyCommand("search") }
-  @objc func handleCmdComma() { KeyCommandBridge.shared?.emitKeyCommand("settings") }
-  @objc func handleCmdBack() { KeyCommandBridge.shared?.emitKeyCommand("back") }
-  @objc func handleCmdF() { KeyCommandBridge.shared?.emitKeyCommand("fullscreen") }
-  @objc func handleTab1() { KeyCommandBridge.shared?.emitKeyCommand("tab1") }
-  @objc func handleTab2() { KeyCommandBridge.shared?.emitKeyCommand("tab2") }
-  @objc func handleTab3() { KeyCommandBridge.shared?.emitKeyCommand("tab3") }
-  @objc func handleTab4() { KeyCommandBridge.shared?.emitKeyCommand("tab4") }
+  @objc func handleCmdK() { PlatformInfo.shared?.emitKeyCommand("search") }
+  @objc func handleCmdComma() { PlatformInfo.shared?.emitKeyCommand("settings") }
+  @objc func handleCmdBack() { PlatformInfo.shared?.emitKeyCommand("back") }
+  @objc func handleTab1() { PlatformInfo.shared?.emitKeyCommand("tab1") }
+  @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
+  @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }
+  @objc func handleTab4() { PlatformInfo.shared?.emitKeyCommand("tab4") }
   #endif
 }
 

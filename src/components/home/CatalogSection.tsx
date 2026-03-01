@@ -265,7 +265,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, // overridden responsively
     borderRadius: 20, // overridden responsively
     backgroundColor: 'rgba(255,255,255,0.1)',
-    cursor: 'pointer' as any,
   },
   viewAllText: {
     fontSize: 14, // overridden responsively

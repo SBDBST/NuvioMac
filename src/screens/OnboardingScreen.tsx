@@ -27,7 +27,6 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { mmkvStorage } from '../services/mmkvStorage';
 import { ShapeAnimation } from '../components/onboarding/ShapeAnimation';
 import { isMacCatalyst } from '../utils/platform';
-import { useArrowKeys } from '../hooks/useKeyboardShortcuts';
 
 const { width, height } = Dimensions.get('window');
 
@@ -219,14 +218,6 @@ const OnboardingScreen = () => {
       });
     }
   };
-
-  // Arrow key navigation for desktop
-  useArrowKeys({
-    onRight: handleNext,
-    onLeft: handlePrev,
-    onEnter: currentIndex === onboardingData.length - 1 ? handleGetStarted : handleNext,
-    onEscape: handleSkip,
-  });
 
   const handleSkip = () => {
     (async () => {
@@ -424,7 +415,6 @@ const styles = StyleSheet.create({
   skipButton: {
     paddingVertical: 8,
     paddingHorizontal: 4,
-    cursor: 'pointer' as any,
   },
   skipText: {
     fontSize: 15,
@@ -498,7 +488,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    cursor: 'pointer' as any,
   },
   buttonText: {
     fontSize: 16,
@@ -540,7 +529,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 18,
-    cursor: 'pointer' as any,
   },
   nextButtonText: {
     fontSize: 15,
