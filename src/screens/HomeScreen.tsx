@@ -63,13 +63,11 @@ import homeStyles, { sharedStyles } from '../styles/homeStyles';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Theme } from '../contexts/ThemeContext';
 import { useLoading } from '../contexts/LoadingContext';
-import { NativeModules } from 'react-native';
+import { isMacCatalyst } from '../utils/platform';
 
 // ScreenOrientation is iOS-mobile-only. No-op on Mac Catalyst.
-const _isMacCatalyst: boolean =
-  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
 let ScreenOrientation: any = null;
-if (!_isMacCatalyst) {
+if (!isMacCatalyst) {
   try { ScreenOrientation = require('expo-screen-orientation'); } catch {}
 }
 

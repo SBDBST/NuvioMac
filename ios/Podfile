@@ -157,6 +157,7 @@ target 'Nuvio' do
     # the macOS binary works identically under Catalyst. We copy it and update
     # the plist so Xcode can find a matching slice for the Catalyst destination.
     patch_libzvbi_for_catalyst(installer)
+    patch_ksplayer_for_catalyst(installer)
   end
 end
 
@@ -217,5 +218,41 @@ def patch_libzvbi_for_catalyst(installer)
     plist_content.sub!(%r{(\s*</array>\s*<key>CFBundlePackageType</key>)}, "\n#{catalyst_entry}\\1")
     File.write(plist_path, plist_content)
     Pod::UI.message "[Catalyst] libzvbi.xcframework patched successfully"
+  end
+end
+
+def patch_ksplayer_for_catalyst(installer)
+  # KSPlayer's SeekView.swift has a #if canImport(AppKit) block that compiles
+  # on Catalyst (where AppKit IS importable) but fails because:
+  #   1. backgroundColor needs 'override' (UIView already declares it)
+  #   2. 'layer' is non-optional on UIView, so 'if let layer' doesn't compile
+  # We patch the source directly since KSPlayer is a local pod.
+  seek_view = File.join(__dir__, '..', 'KSPlayer', 'Sources', 'KSPlayer', 'Video', 'SeekView.swift')
+
+  unless File.exist?(seek_view)
+    Pod::UI.warn "[Catalyst] SeekView.swift not found at #{seek_view} -- skipping KSPlayer patch"
+    return
+  end
+
+  content = File.read(seek_view)
+  changed = false
+
+  # Fix 1: Add 'override' keyword to backgroundColor in the canImport(AppKit) block.
+  if content.include?("    var backgroundColor: UIColor?") && !content.include?("override var backgroundColor")
+    content.sub!("    var backgroundColor: UIColor?", "    override var backgroundColor: UIColor?")
+    changed = true
+  end
+
+  # Fix 2: Remove 'if let layer,' -- layer is non-optional on UIView under Catalyst.
+  if content.include?("if let layer, let cgColor = layer.backgroundColor")
+    content.sub!("if let layer, let cgColor = layer.backgroundColor", "if let cgColor = layer.backgroundColor")
+    changed = true
+  end
+
+  if changed
+    File.write(seek_view, content)
+    Pod::UI.message "[Catalyst] Patched KSPlayer SeekView.swift for Catalyst compatibility"
+  else
+    Pod::UI.message "[Catalyst] KSPlayer SeekView.swift already patched -- skipping"
   end
 end

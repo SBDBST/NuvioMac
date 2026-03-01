@@ -54,17 +54,11 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>
-		<string>_googlecast._tcp</string>
-		<string>_CC1AD845._googlecast._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Nuvio uses the local network to discover Cast-enabled devices on your WiFi network and to connect to local media servers.</string>
+	<string>Nuvio uses the local network to connect to local media servers.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app does not require microphone access.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<false/>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>RCTRootViewBackgroundColor</key>

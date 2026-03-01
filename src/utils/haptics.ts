@@ -7,10 +7,7 @@
  * This module re-exports the same API surface as expo-haptics so existing
  * call sites can switch imports with minimal changes.
  */
-import { Platform, NativeModules } from 'react-native';
-
-const _isMacCatalyst: boolean =
-  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
+import { isMacCatalyst } from './platform';
 
 // Re-export the enums so call sites don't need to change their references.
 export enum ImpactFeedbackStyle {
@@ -26,7 +23,7 @@ export enum NotificationFeedbackType {
 }
 
 export async function impactAsync(_style?: ImpactFeedbackStyle): Promise<void> {
-  if (_isMacCatalyst) return;
+  if (isMacCatalyst) return;
   try {
     const Haptics = require('expo-haptics');
     await Haptics.impactAsync(_style);
@@ -36,7 +33,7 @@ export async function impactAsync(_style?: ImpactFeedbackStyle): Promise<void> {
 }
 
 export async function notificationAsync(_type?: NotificationFeedbackType): Promise<void> {
-  if (_isMacCatalyst) return;
+  if (isMacCatalyst) return;
   try {
     const Haptics = require('expo-haptics');
     await Haptics.notificationAsync(_type);
@@ -46,7 +43,7 @@ export async function notificationAsync(_type?: NotificationFeedbackType): Promi
 }
 
 export async function selectionAsync(): Promise<void> {
-  if (_isMacCatalyst) return;
+  if (isMacCatalyst) return;
   try {
     const Haptics = require('expo-haptics');
     await Haptics.selectionAsync();

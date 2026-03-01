@@ -1,16 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { StatusBar, Dimensions, AppState, InteractionManager, Platform, NativeModules } from 'react-native';
+import { StatusBar, Dimensions, AppState, InteractionManager } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { logger } from '../../../utils/logger';
 import { useFocusEffect } from '@react-navigation/native';
+import { isMacCatalyst } from '../../../utils/platform';
 
 // Brightness and ScreenOrientation are iOS-mobile-only. No-op on Mac Catalyst.
-const _isMacCatalyst: boolean =
-  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
-
 let Brightness: any = null;
 let ScreenOrientation: any = null;
-if (!_isMacCatalyst) {
+if (!isMacCatalyst) {
   try { Brightness = require('expo-brightness'); } catch {}
   try { ScreenOrientation = require('expo-screen-orientation'); } catch {}
 }

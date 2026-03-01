@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react';
-import { Animated, Platform, NativeModules } from 'react-native';
+import { Animated } from 'react-native';
 import { PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
+import { isMacCatalyst } from '../utils/platform';
 
 // Brightness is iOS-mobile-only. No-op on Mac Catalyst.
-const _isMacCatalyst: boolean =
-  Platform.OS === 'ios' && NativeModules.PlatformInfo?.isMacCatalyst === true;
-
 let Brightness: any = null;
-if (!_isMacCatalyst) {
+if (!isMacCatalyst) {
   try { Brightness = require('expo-brightness'); } catch {}
 }
 
