@@ -1,11 +1,12 @@
 /**
  * Global keyboard shortcuts for NuvioMac.
  *
- * Uses the PlatformInfo native module to receive keyboard shortcut
- * events from the Mac menu bar. Only active on Mac Catalyst.
+ * Uses PlatformInfo native module for key command events from Mac menu bar.
+ * Tab switching uses TabActions.jumpTo dispatched through the navigation tree,
+ * which properly updates the native UITabBarController's selected index.
  */
 import React, { useCallback } from 'react';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, TabActions } from '@react-navigation/native';
 import { useKeyCommands } from '../hooks/useKeyboardShortcuts';
 import { isMacCatalyst } from '../utils/platform';
 
@@ -17,17 +18,31 @@ export const GlobalKeyboardShortcuts: React.FC<{ children: React.ReactNode }> = 
 const ShortcutHandler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigation = useNavigation<NavigationProp<any>>();
 
+  const jumpToTab = useCallback((tabName: string) => {
+    try {
+      // First navigate to MainTabs to ensure we're in the tab navigator,
+      // then dispatch jumpTo which properly syncs the native tab bar.
+      navigation.navigate('MainTabs' as any);
+      // Small delay to ensure MainTabs is focused before dispatching jumpTo
+      setTimeout(() => {
+        try {
+          navigation.dispatch(TabActions.jumpTo(tabName));
+        } catch {}
+      }, 50);
+    } catch {}
+  }, [navigation]);
+
   // Tab order: Home, Library, Search, Downloads, Settings
   const handlers = useCallback(() => ({
-    search: () => { try { navigation.navigate('MainTabs', { screen: 'Search' }); } catch {} },
-    settings: () => { try { navigation.navigate('MainTabs', { screen: 'Settings' }); } catch {} },
+    search: () => jumpToTab('Search'),
+    settings: () => jumpToTab('Settings'),
     back: () => { try { navigation.goBack(); } catch {} },
-    tab1: () => { try { navigation.navigate('MainTabs', { screen: 'Home' }); } catch {} },
-    tab2: () => { try { navigation.navigate('MainTabs', { screen: 'Library' }); } catch {} },
-    tab3: () => { try { navigation.navigate('MainTabs', { screen: 'Search' }); } catch {} },
-    tab4: () => { try { navigation.navigate('MainTabs', { screen: 'Downloads' }); } catch {} },
-    tab5: () => { try { navigation.navigate('MainTabs', { screen: 'Settings' }); } catch {} },
-  }), [navigation]);
+    tab1: () => jumpToTab('Home'),
+    tab2: () => jumpToTab('Library'),
+    tab3: () => jumpToTab('Search'),
+    tab4: () => jumpToTab('Downloads'),
+    tab5: () => jumpToTab('Settings'),
+  }), [navigation, jumpToTab]);
 
   useKeyCommands(handlers());
 
