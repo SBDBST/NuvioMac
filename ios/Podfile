@@ -133,6 +133,24 @@ target 'Nuvio' do
       end
     end
 
+    # Fix "bundle format is ambiguous" codesign error on Mac Catalyst.
+    # React.framework uses a versioned macOS bundle layout that confuses codesign.
+    # Adding --no-strict via OTHER_CODE_SIGN_FLAGS tells codesign to tolerate this.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'Pods-Nuvio'
+      target.build_configurations.each do |config|
+        xcconfig_ref = config.base_configuration_reference
+        next unless xcconfig_ref
+        xcconfig_path = xcconfig_ref.real_path
+        next unless File.exist?(xcconfig_path)
+        xcconfig = File.read(xcconfig_path)
+        unless xcconfig.include?('OTHER_CODE_SIGN_FLAGS')
+          xcconfig += "\nOTHER_CODE_SIGN_FLAGS[sdk=macosx*] = --no-strict\n"
+          File.write(xcconfig_path, xcconfig)
+        end
+      end
+    end
+
     # Patch libzvbi.xcframework to add a Mac Catalyst slice.
     # The upstream xcframework ships macos-arm64_x86_64 but no maccatalyst entry.
     # libzvbi is a pure C teletext library with no platform-specific deps, so
