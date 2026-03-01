@@ -67,6 +67,43 @@ public class AppDelegate: ExpoAppDelegate {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
   }
+
+  // ─── Mac Catalyst Menu & Keyboard Shortcuts ──────────────────────
+  #if targetEnvironment(macCatalyst)
+  public override func buildMenu(with builder: UIMenuBuilder) {
+    super.buildMenu(with: builder)
+    guard builder.system == .main else { return }
+
+    // Navigation shortcuts
+    let navChildren: [UIKeyCommand] = [
+      UIKeyCommand(title: "Search", action: #selector(handleCmdK), input: "k", modifierFlags: .command),
+      UIKeyCommand(title: "Preferences...", action: #selector(handleCmdComma), input: ",", modifierFlags: .command),
+      UIKeyCommand(title: "Back", action: #selector(handleCmdBack), input: "[", modifierFlags: .command),
+      UIKeyCommand(title: "Fullscreen", action: #selector(handleCmdF), input: "f", modifierFlags: [.command, .control]),
+    ]
+    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
+    builder.insertSibling(navMenu, afterMenu: .view)
+
+    // Tab switching
+    let tabChildren: [UIKeyCommand] = [
+      UIKeyCommand(title: "Home", action: #selector(handleTab1), input: "1", modifierFlags: .command),
+      UIKeyCommand(title: "Search", action: #selector(handleTab2), input: "2", modifierFlags: .command),
+      UIKeyCommand(title: "Library", action: #selector(handleTab3), input: "3", modifierFlags: .command),
+      UIKeyCommand(title: "Downloads", action: #selector(handleTab4), input: "4", modifierFlags: .command),
+    ]
+    let tabMenu = UIMenu(title: "Tabs", options: .displayInline, children: tabChildren)
+    builder.insertChild(tabMenu, atEndOfMenu: .view)
+  }
+
+  @objc func handleCmdK() { KeyCommandBridge.shared?.emitKeyCommand("search") }
+  @objc func handleCmdComma() { KeyCommandBridge.shared?.emitKeyCommand("settings") }
+  @objc func handleCmdBack() { KeyCommandBridge.shared?.emitKeyCommand("back") }
+  @objc func handleCmdF() { KeyCommandBridge.shared?.emitKeyCommand("fullscreen") }
+  @objc func handleTab1() { KeyCommandBridge.shared?.emitKeyCommand("tab1") }
+  @objc func handleTab2() { KeyCommandBridge.shared?.emitKeyCommand("tab2") }
+  @objc func handleTab3() { KeyCommandBridge.shared?.emitKeyCommand("tab3") }
+  @objc func handleTab4() { KeyCommandBridge.shared?.emitKeyCommand("tab4") }
+  #endif
 }
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {

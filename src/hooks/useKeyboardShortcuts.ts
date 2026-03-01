@@ -1,75 +1,74 @@
 /**
- * Global keyboard shortcuts for Mac Catalyst.
+ * Keyboard shortcuts for Mac Catalyst.
  *
- * Provides desktop-standard shortcuts: Cmd+F (fullscreen), Cmd+K (search),
- * Cmd+[ (back), Space (play/pause), Escape (close modal / go back), and
- * arrow keys for carousel/onboarding navigation.
+ * Uses the native KeyCommandBridge module which registers shortcuts
+ * via the Mac menu bar (buildMenu). Shortcuts appear in the menu bar
+ * AND respond to keyboard input.
  *
- * No-ops on mobile (iOS/Android) to avoid interfering with system keyboards.
+ * No-ops on mobile.
  */
-import { useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { useEffect } from 'react';
+import { NativeModules, NativeEventEmitter } from 'react-native';
 import { isMacCatalyst } from '../utils/platform';
 
-export interface KeyboardShortcutEvent {
-  key: string;
-  code: string;
-  metaKey: boolean;   // Cmd on Mac
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-  preventDefault: () => void;
+const KeyCommandBridge = NativeModules.KeyCommandBridge;
+let emitter: NativeEventEmitter | null = null;
+
+function getEmitter(): NativeEventEmitter | null {
+  if (!isMacCatalyst || !KeyCommandBridge) return null;
+  if (!emitter) {
+    emitter = new NativeEventEmitter(KeyCommandBridge);
+  }
+  return emitter;
 }
 
-type ShortcutHandler = (event: KeyboardShortcutEvent) => void;
-
-interface ShortcutMap {
-  [description: string]: {
-    test: (e: KeyboardShortcutEvent) => boolean;
-    handler: ShortcutHandler;
-  };
-}
+type CommandId =
+  | 'search' | 'settings' | 'back' | 'fullscreen'
+  | 'tab1' | 'tab2' | 'tab3' | 'tab4'
+  | 'playPause' | 'escape'
+  | 'arrowLeft' | 'arrowRight' | 'arrowUp' | 'arrowDown'
+  | 'enter';
 
 /**
- * Register global keyboard shortcuts. Only active on Mac Catalyst.
+ * Listen for a specific keyboard shortcut by command ID.
  *
- * Usage:
- * ```
- * useKeyboardShortcuts({
- *   'Cmd+K: Search': {
- *     test: (e) => e.metaKey && e.key === 'k',
- *     handler: () => navigation.navigate('Search'),
- *   },
- * });
- * ```
+ * Command IDs correspond to the keys registered in AppDelegate's buildMenu:
+ *   search, settings, back, fullscreen, tab1-4
  */
-export function useKeyboardShortcuts(shortcuts: ShortcutMap): void {
+export function useKeyCommand(commandId: CommandId, handler: () => void): void {
   useEffect(() => {
-    if (!isMacCatalyst) return;
+    const em = getEmitter();
+    if (!em) return;
 
-    const handleKeyDown = (e: Event) => {
-      const ke = e as unknown as KeyboardShortcutEvent;
-      for (const entry of Object.values(shortcuts)) {
-        if (entry.test(ke)) {
-          ke.preventDefault();
-          entry.handler(ke);
-          return;
-        }
+    const sub = em.addListener('onKeyCommand', (event: { id: string }) => {
+      if (event.id === commandId) {
+        handler();
       }
-    };
+    });
 
-    // React Native on Catalyst forwards DOM key events to the
-    // underlying UIKit responder chain. We listen at the document
-    // level to catch them globally.
-    if (typeof document !== 'undefined') {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [shortcuts]);
+    return () => sub.remove();
+  }, [commandId, handler]);
 }
 
 /**
- * Convenience hook for arrow key navigation (onboarding, carousels).
+ * Listen for multiple keyboard shortcuts at once.
+ */
+export function useKeyCommands(handlers: Partial<Record<CommandId, () => void>>): void {
+  useEffect(() => {
+    const em = getEmitter();
+    if (!em) return;
+
+    const sub = em.addListener('onKeyCommand', (event: { id: string }) => {
+      const handler = handlers[event.id as CommandId];
+      if (handler) handler();
+    });
+
+    return () => sub.remove();
+  }, [handlers]);
+}
+
+/**
+ * Convenience hook for arrow key navigation.
  */
 export function useArrowKeys(callbacks: {
   onLeft?: () => void;
@@ -79,44 +78,21 @@ export function useArrowKeys(callbacks: {
   onEnter?: () => void;
   onEscape?: () => void;
 }): void {
-  const shortcuts: ShortcutMap = {};
+  useEffect(() => {
+    const em = getEmitter();
+    if (!em) return;
 
-  if (callbacks.onLeft) {
-    shortcuts['ArrowLeft'] = {
-      test: (e) => e.key === 'ArrowLeft' && !e.metaKey,
-      handler: () => callbacks.onLeft!(),
-    };
-  }
-  if (callbacks.onRight) {
-    shortcuts['ArrowRight'] = {
-      test: (e) => e.key === 'ArrowRight' && !e.metaKey,
-      handler: () => callbacks.onRight!(),
-    };
-  }
-  if (callbacks.onUp) {
-    shortcuts['ArrowUp'] = {
-      test: (e) => e.key === 'ArrowUp' && !e.metaKey,
-      handler: () => callbacks.onUp!(),
-    };
-  }
-  if (callbacks.onDown) {
-    shortcuts['ArrowDown'] = {
-      test: (e) => e.key === 'ArrowDown' && !e.metaKey,
-      handler: () => callbacks.onDown!(),
-    };
-  }
-  if (callbacks.onEnter) {
-    shortcuts['Enter'] = {
-      test: (e) => e.key === 'Enter',
-      handler: () => callbacks.onEnter!(),
-    };
-  }
-  if (callbacks.onEscape) {
-    shortcuts['Escape'] = {
-      test: (e) => e.key === 'Escape',
-      handler: () => callbacks.onEscape!(),
-    };
-  }
+    const sub = em.addListener('onKeyCommand', (event: { id: string }) => {
+      switch (event.id) {
+        case 'arrowLeft': callbacks.onLeft?.(); break;
+        case 'arrowRight': callbacks.onRight?.(); break;
+        case 'arrowUp': callbacks.onUp?.(); break;
+        case 'arrowDown': callbacks.onDown?.(); break;
+        case 'enter': callbacks.onEnter?.(); break;
+        case 'escape': callbacks.onEscape?.(); break;
+      }
+    });
 
-  useKeyboardShortcuts(shortcuts);
+    return () => sub.remove();
+  }, [callbacks]);
 }

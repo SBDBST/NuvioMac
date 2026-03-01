@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../contexts/ToastContext';
 import { DeviceEventEmitter } from 'react-native';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share, Pressable } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -14,7 +14,7 @@ import { storageService } from '../../services/storageService';
 import { TraktService } from '../../services/traktService';
 import { useTraktContext } from '../../contexts/TraktContext';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { useDesktopHover } from '../../hooks/useDesktopInteraction';
+import { usePressableHover } from '../../hooks/useDesktopInteraction';
 import { isMacCatalyst } from '../../utils/platform';
 
 interface ContentItemProps {
@@ -182,7 +182,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
   }, [item.id, item.type, onPress]);
 
   // Desktop hover effect
-  const [isHovered, hoverStyle, hoverHandlers] = useDesktopHover(1.05);
+  const { isHovered, hoverProps } = usePressableHover();
 
   const handleOptionSelect = useCallback(async (option: string) => {
     switch (option) {
@@ -309,20 +309,23 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
   return (
     <>
       <Animated.View
-        style={[styles.itemContainer, { width: finalWidth }, hoverStyle]}
+        style={[
+          styles.itemContainer,
+          { width: finalWidth },
+          isHovered && { transform: [{ scale: 1.05 }] },
+        ]}
         entering={FadeIn.duration(300)}
-        {...(isMacCatalyst ? hoverHandlers : {})}
       >
-        <TouchableOpacity
+        <Pressable
           style={[
             styles.contentItem,
             { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
             isHovered && { borderColor: 'rgba(255,255,255,0.35)' },
           ]}
-          activeOpacity={isMacCatalyst ? 1 : 0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={300}
+          {...hoverProps}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}
@@ -377,7 +380,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </Pressable>
         {settings.showPosterTitles && (
           <Text
             style={[
