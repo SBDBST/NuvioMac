@@ -97,11 +97,11 @@ export const StreamsScreen = () => {
       <View style={styles.container}>
         <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-        {/* Back Button (Android only) */}
-        {Platform.OS !== 'ios' && (
+        {/* Back/Close Button (Android and Mac Catalyst) */}
+        {(Platform.OS !== 'ios' || require('react-native').NativeModules.PlatformInfo?.isMacCatalyst === true) && (
           <View style={[styles.backButtonContainer, isTablet && styles.backButtonContainerTablet]}>
             <TouchableOpacity
-              style={[styles.backButton, Platform.OS === 'android' ? { paddingTop: 45 } : null]}
+              style={[styles.backButton, Platform.OS === 'android' ? { paddingTop: 45 } : { paddingTop: 16 }]}
               onPress={handleBack}
               activeOpacity={0.7}
             >

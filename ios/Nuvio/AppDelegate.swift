@@ -92,6 +92,7 @@ public class AppDelegate: ExpoAppDelegate {
       UIKeyCommand(title: "Search", action: #selector(handleCmdK), input: "k", modifierFlags: .command),
       UIKeyCommand(title: "Preferences...", action: #selector(handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(handleCmdBack), input: "[", modifierFlags: .command),
+      UIKeyCommand(title: "Close", action: #selector(handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: []),
     ]
     let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)
@@ -111,6 +112,7 @@ public class AppDelegate: ExpoAppDelegate {
   @objc func handleCmdK() { PlatformInfo.shared?.emitKeyCommand("search") }
   @objc func handleCmdComma() { PlatformInfo.shared?.emitKeyCommand("settings") }
   @objc func handleCmdBack() { PlatformInfo.shared?.emitKeyCommand("back") }
+  @objc func handleEscape() { PlatformInfo.shared?.emitKeyCommand("escape") }
   @objc func handleTab1() { PlatformInfo.shared?.emitKeyCommand("tab1") }
   @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
   @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }

@@ -23,7 +23,7 @@ function getEmitter(): NativeEventEmitter | null {
 }
 
 type CommandId =
-  | 'search' | 'settings' | 'back'
+  | 'search' | 'settings' | 'back' | 'escape'
   | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5';
 
 /**
