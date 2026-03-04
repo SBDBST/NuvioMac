@@ -16,7 +16,7 @@
  */
 import React from 'react';
 import { View, requireNativeComponent, ViewProps, Platform } from 'react-native';
-import { isMacCatalyst } from '../utils/platform';
+import { isMacCatalyst } from '../../utils/platform';
 
 interface HoverViewProps extends ViewProps {
   onHoverIn?: () => void;
