@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../contexts/ToastContext';
 import { DeviceEventEmitter } from 'react-native';
-import { View, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share, Pressable, useWindowDimensions } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share, useWindowDimensions } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -87,15 +87,6 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
 
-  // Hover state for Catalyst desktop
-  const [isHovered, setIsHovered] = useState(false);
-  const onHoverIn = isMacCatalyst ? () => {
-    if (__DEV__) console.log('[ContentItem] Pointer enter');
-    setIsHovered(true);
-  } : undefined;
-  const onHoverOut = isMacCatalyst ? () => {
-    setIsHovered(false);
-  } : undefined;
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
 
@@ -317,28 +308,13 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   return (
     <>
-      <View
-        onPointerEnter={onHoverIn}
-        onPointerLeave={onHoverOut}
-      >
       <Animated.View
-        style={[
-          styles.itemContainer,
-          { width: finalWidth },
-          isMacCatalyst && isHovered && {
-            transform: [{ scale: 1.04 }],
-          },
-        ]}
+        style={[styles.itemContainer, { width: finalWidth }]}
         entering={FadeIn.duration(300)}
       >
-        <Pressable
-          style={[
-            styles.contentItem,
-            { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
-            isMacCatalyst && isHovered && {
-              borderColor: 'rgba(255,255,255,0.4)',
-            },
-          ]}
+        <TouchableOpacity
+          style={[styles.contentItem, { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius }]}
+          activeOpacity={0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={isMacCatalyst ? 1 : 300}
@@ -396,7 +372,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
               </View>
             )}
           </View>
-        </Pressable>
+        </TouchableOpacity>
         {settings.showPosterTitles && (
           <Text
             style={[
@@ -412,7 +388,6 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
           </Text>
         )}
       </Animated.View>
-      </View>
 
       <DropUpMenu
         visible={menuVisible}
