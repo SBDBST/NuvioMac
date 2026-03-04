@@ -331,7 +331,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
           activeOpacity={0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
-          delayLongPress={isMacCatalyst ? 1 : 300}
+          delayLongPress={300}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}
