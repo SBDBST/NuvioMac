@@ -9,12 +9,14 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTrailer } from '../../contexts/TrailerContext';
 import { logger } from '../../utils/logger';
 import TrailerService from '../../services/trailerService';
+import { isMacCatalyst } from '../../utils/platform';
 import Video, { VideoRef, OnLoadData, OnProgressData } from 'react-native-video';
 
 const { width, height } = Dimensions.get('window');
@@ -120,6 +122,14 @@ const TrailerModal: React.FC<TrailerModalProps> = memo(({
         setIsPlaying(true);
         logger.info('TrailerModal', `Successfully loaded direct trailer URL for: ${trailer.name}`);
       } else {
+        // On Catalyst, fall back to opening YouTube in the default browser
+        if (isMacCatalyst) {
+          logger.info('TrailerModal', `Extraction server unavailable, opening in browser: ${youtubeUrl}`);
+          setLoading(false);
+          Linking.openURL(youtubeUrl);
+          handleClose();
+          return;
+        }
         throw new Error('No streaming URL available');
       }
     } catch (err) {
