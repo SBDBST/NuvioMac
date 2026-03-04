@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Platform } from 'react-native';
 import { PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
 import { isMacCatalyst } from '../utils/platform';
 
