@@ -15,6 +15,7 @@ import { TraktService } from '../../services/traktService';
 import { useTraktContext } from '../../contexts/TraktContext';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { isMacCatalyst } from '../../utils/platform';
+import HoverView from '../common/HoverView';
 
 interface ContentItemProps {
   item: StreamingContent;
@@ -86,6 +87,7 @@ const POSTER_WIDTH = posterLayout.posterWidth;
 const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, deferMs = 0 }: ContentItemProps) => {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
+  const [isHovered, setIsHovered] = useState(false);
 
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
@@ -308,12 +310,24 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   return (
     <>
+      <HoverView
+        onHoverIn={() => setIsHovered(true)}
+        onHoverOut={() => setIsHovered(false)}
+      >
       <Animated.View
-        style={[styles.itemContainer, { width: finalWidth }]}
+        style={[
+          styles.itemContainer,
+          { width: finalWidth },
+          isHovered && { transform: [{ scale: 1.04 }] },
+        ]}
         entering={FadeIn.duration(300)}
       >
         <TouchableOpacity
-          style={[styles.contentItem, { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius }]}
+          style={[
+            styles.contentItem,
+            { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
+            isHovered && { borderColor: 'rgba(255,255,255,0.4)' },
+          ]}
           activeOpacity={0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
@@ -388,6 +402,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
           </Text>
         )}
       </Animated.View>
+      </HoverView>
 
       <DropUpMenu
         visible={menuVisible}
