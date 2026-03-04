@@ -89,6 +89,13 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   // Hover state for Catalyst desktop
   const [isHovered, setIsHovered] = useState(false);
+  const onHoverIn = isMacCatalyst ? () => {
+    if (__DEV__) console.log('[ContentItem] Pointer enter');
+    setIsHovered(true);
+  } : undefined;
+  const onHoverOut = isMacCatalyst ? () => {
+    setIsHovered(false);
+  } : undefined;
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
 
@@ -310,8 +317,18 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   return (
     <>
+      <View
+        onPointerEnter={onHoverIn}
+        onPointerLeave={onHoverOut}
+      >
       <Animated.View
-        style={[styles.itemContainer, { width: finalWidth }]}
+        style={[
+          styles.itemContainer,
+          { width: finalWidth },
+          isMacCatalyst && isHovered && {
+            transform: [{ scale: 1.04 }],
+          },
+        ]}
         entering={FadeIn.duration(300)}
       >
         <Pressable
@@ -320,16 +337,11 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
             { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
             isMacCatalyst && isHovered && {
               borderColor: 'rgba(255,255,255,0.4)',
-              transform: [{ scale: 1.04 }],
             },
           ]}
           onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={isMacCatalyst ? 1 : 300}
-          {...(isMacCatalyst ? {
-            onHoverIn: () => setIsHovered(true),
-            onHoverOut: () => setIsHovered(false),
-          } : {})}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}
@@ -400,6 +412,7 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
           </Text>
         )}
       </Animated.View>
+      </View>
 
       <DropUpMenu
         visible={menuVisible}
