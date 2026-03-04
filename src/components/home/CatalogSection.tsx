@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, FlatList, useWindowDimensions } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -78,6 +78,14 @@ const CatalogSection = ({ catalog }: CatalogSectionProps) => {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { currentTheme } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Responsive layout: recompute on window resize
+  const deviceType = useMemo(() => getDeviceType(windowWidth), [windowWidth]);
+  const isTablet = deviceType === 'tablet';
+  const isLargeTablet = deviceType === 'largeTablet';
+  const isTV = deviceType === 'tv';
+  const responsiveLayout = useMemo(() => calculatePosterLayout(windowWidth), [windowWidth]);
 
   // Use state for the display name to handle async custom name resolution
   const [displayName, setDisplayName] = React.useState(catalog.name);
@@ -214,7 +222,7 @@ const CatalogSection = ({ catalog }: CatalogSectionProps) => {
           styles.catalogList,
           {
             paddingHorizontal: isTV ? 32 : isLargeTablet ? 28 : isTablet ? 24 : 16,
-            paddingRight: (isTV ? 32 : isLargeTablet ? 28 : isTablet ? 24 : 16) - posterLayout.partialPosterWidth,
+            paddingRight: (isTV ? 32 : isLargeTablet ? 28 : isTablet ? 24 : 16) - responsiveLayout.partialPosterWidth,
           }
         ])}
         ItemSeparatorComponent={ItemSeparator}

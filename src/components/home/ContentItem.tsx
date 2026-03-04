@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../contexts/ToastContext';
 import { DeviceEventEmitter } from 'react-native';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Dimensions, Platform, Text, Share, Pressable, useWindowDimensions } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -14,6 +14,7 @@ import { storageService } from '../../services/storageService';
 import { TraktService } from '../../services/traktService';
 import { useTraktContext } from '../../contexts/TraktContext';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { isMacCatalyst } from '../../utils/platform';
 
 interface ContentItemProps {
   item: StreamingContent;
@@ -84,6 +85,10 @@ const POSTER_WIDTH = posterLayout.posterWidth;
 
 const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, deferMs = 0 }: ContentItemProps) => {
   const { t } = useTranslation();
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Hover state for Catalyst desktop
+  const [isHovered, setIsHovered] = useState(false);
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
 
@@ -124,22 +129,24 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
   const { settings, isLoaded } = useSettings();
   const { showSuccess, showInfo } = useToast();
   const posterRadius = typeof settings.posterBorderRadius === 'number' ? settings.posterBorderRadius : 12;
+  // Recalculate poster layout when window resizes (critical for Catalyst window management)
+  const responsivePosterWidth = React.useMemo(() => calculatePosterLayout(windowWidth).posterWidth, [windowWidth]);
   // Memoize poster width calculation to avoid recalculating on every render
   const posterWidth = React.useMemo(() => {
-    const deviceType = getDeviceType(width);
+    const deviceType = getDeviceType(windowWidth);
     const sizeMultiplier = deviceType === 'tv' ? 1.2 : deviceType === 'largeTablet' ? 1.1 : deviceType === 'tablet' ? 1.0 : 0.9;
 
     switch (settings.posterSize) {
       case 'small':
-        return Math.max(90, POSTER_WIDTH - 15) * sizeMultiplier;
+        return Math.max(90, responsivePosterWidth - 15) * sizeMultiplier;
       case 'medium':
-        return Math.max(110, POSTER_WIDTH + 10) * sizeMultiplier;
+        return Math.max(110, responsivePosterWidth + 10) * sizeMultiplier;
       case 'large':
-        return Math.max(130, POSTER_WIDTH + 25) * sizeMultiplier;
+        return Math.max(130, responsivePosterWidth + 25) * sizeMultiplier;
       default:
-        return POSTER_WIDTH * sizeMultiplier;
+        return responsivePosterWidth * sizeMultiplier;
     }
-  }, [settings.posterSize, width]);
+  }, [settings.posterSize, windowWidth, responsivePosterWidth]);
 
   // Determine dimensions based on poster shape
   const { finalWidth, finalAspectRatio, borderRadius } = React.useMemo(() => {
@@ -307,12 +314,22 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
         style={[styles.itemContainer, { width: finalWidth }]}
         entering={FadeIn.duration(300)}
       >
-        <TouchableOpacity
-          style={[styles.contentItem, { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius }]}
-          activeOpacity={0.7}
+        <Pressable
+          style={[
+            styles.contentItem,
+            { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
+            isMacCatalyst && isHovered && {
+              borderColor: 'rgba(255,255,255,0.4)',
+              transform: [{ scale: 1.04 }],
+            },
+          ]}
           onPress={handlePress}
           onLongPress={handleLongPress}
-          delayLongPress={300}
+          delayLongPress={isMacCatalyst ? 1 : 300}
+          {...(isMacCatalyst ? {
+            onHoverIn: () => setIsHovered(true),
+            onHoverOut: () => setIsHovered(false),
+          } : {})}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}
@@ -367,14 +384,14 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </Pressable>
         {settings.showPosterTitles && (
           <Text
             style={[
               styles.title,
               {
                 color: currentTheme.colors.mediumEmphasis,
-                fontSize: getDeviceType(width) === 'tv' ? 16 : getDeviceType(width) === 'largeTablet' ? 15 : getDeviceType(width) === 'tablet' ? 14 : 13
+                fontSize: getDeviceType(windowWidth) === 'tv' ? 16 : getDeviceType(windowWidth) === 'largeTablet' ? 15 : getDeviceType(windowWidth) === 'tablet' ? 14 : 13
               }
             ]}
             numberOfLines={2}
