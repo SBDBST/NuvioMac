@@ -89,3 +89,32 @@ class HoverViewManager: RCTViewManager {
     return HoverableNativeView()
   }
 }
+
+// MARK: - UIResponder extension for keyboard shortcut handling
+// This ensures key commands work regardless of which view is first responder.
+// Without this, commands crash when KSPlayer's view is first responder because
+// it doesn't implement our custom selectors.
+
+#if targetEnvironment(macCatalyst)
+extension UIResponder {
+  // Navigation
+  @objc func handleCmdK() { PlatformInfo.shared?.emitKeyCommand("search") }
+  @objc func handleCmdComma() { PlatformInfo.shared?.emitKeyCommand("settings") }
+  @objc func handleCmdBack() { PlatformInfo.shared?.emitKeyCommand("back") }
+  @objc func handleEscape() { PlatformInfo.shared?.emitKeyCommand("escape") }
+
+  // Tabs
+  @objc func handleTab1() { PlatformInfo.shared?.emitKeyCommand("tab1") }
+  @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
+  @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }
+  @objc func handleTab4() { PlatformInfo.shared?.emitKeyCommand("tab4") }
+  @objc func handleTab5() { PlatformInfo.shared?.emitKeyCommand("tab5") }
+
+  // Player media controls
+  @objc func handleSpace() { PlatformInfo.shared?.emitKeyCommand("playerToggle") }
+  @objc func handleArrowLeft() { PlatformInfo.shared?.emitKeyCommand("playerSeekBack") }
+  @objc func handleArrowRight() { PlatformInfo.shared?.emitKeyCommand("playerSeekForward") }
+  @objc func handleMuteKey() { PlatformInfo.shared?.emitKeyCommand("playerMute") }
+  @objc func handleFullscreen() { PlatformInfo.shared?.emitKeyCommand("playerFullscreen") }
+}
+#endif

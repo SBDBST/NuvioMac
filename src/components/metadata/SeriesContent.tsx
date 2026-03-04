@@ -6,6 +6,7 @@ import FastImage from '@d11/react-native-fast-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
+import { isMacCatalyst } from '../../utils/platform';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSettings } from '../../hooks/useSettings';
 import { Episode } from '../../types/metadata';
@@ -1669,7 +1670,9 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
                   paddingBottom: isTV ? 32 : isLargeTablet ? 28 : isTablet ? 24 : 8
                 }
               ]}
-              removeClippedSubviews
+              estimatedItemSize={120}
+              scrollEnabled={!isMacCatalyst}
+              removeClippedSubviews={!isMacCatalyst}
             />
           )
         )}

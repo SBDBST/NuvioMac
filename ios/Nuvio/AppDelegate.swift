@@ -87,37 +87,44 @@ public class AppDelegate: ExpoAppDelegate {
     super.buildMenu(with: builder)
     guard builder.system == .main else { return }
 
+    // Remove system menus that crash when forwarded to KSPlayer's first responder
+    builder.remove(menu: .format)
+    builder.remove(menu: .spelling)
+    builder.remove(menu: .substitutions)
+    builder.remove(menu: .transformations)
+
     // Navigation shortcuts
     let navChildren: [UIKeyCommand] = [
-      UIKeyCommand(title: "Search", action: #selector(handleCmdK), input: "k", modifierFlags: .command),
-      UIKeyCommand(title: "Preferences...", action: #selector(handleCmdComma), input: ",", modifierFlags: .command),
-      UIKeyCommand(title: "Back", action: #selector(handleCmdBack), input: "[", modifierFlags: .command),
-      UIKeyCommand(title: "Close", action: #selector(handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: []),
+      UIKeyCommand(title: "Search", action: #selector(UIResponder.handleCmdK), input: "k", modifierFlags: .command),
+      UIKeyCommand(title: "Preferences...", action: #selector(UIResponder.handleCmdComma), input: ",", modifierFlags: .command),
+      UIKeyCommand(title: "Back", action: #selector(UIResponder.handleCmdBack), input: "[", modifierFlags: .command),
+      UIKeyCommand(title: "Close", action: #selector(UIResponder.handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: []),
     ]
     let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)
 
     // Tab switching -- order matches the tab bar: Home, Library, Search, Downloads, Settings
     let tabChildren: [UIKeyCommand] = [
-      UIKeyCommand(title: "Home", action: #selector(handleTab1), input: "1", modifierFlags: .command),
-      UIKeyCommand(title: "Library", action: #selector(handleTab2), input: "2", modifierFlags: .command),
-      UIKeyCommand(title: "Search", action: #selector(handleTab3), input: "3", modifierFlags: .command),
-      UIKeyCommand(title: "Downloads", action: #selector(handleTab4), input: "4", modifierFlags: .command),
-      UIKeyCommand(title: "Settings", action: #selector(handleTab5), input: "5", modifierFlags: .command),
+      UIKeyCommand(title: "Home", action: #selector(UIResponder.handleTab1), input: "1", modifierFlags: .command),
+      UIKeyCommand(title: "Library", action: #selector(UIResponder.handleTab2), input: "2", modifierFlags: .command),
+      UIKeyCommand(title: "Search", action: #selector(UIResponder.handleTab3), input: "3", modifierFlags: .command),
+      UIKeyCommand(title: "Downloads", action: #selector(UIResponder.handleTab4), input: "4", modifierFlags: .command),
+      UIKeyCommand(title: "Settings", action: #selector(UIResponder.handleTab5), input: "5", modifierFlags: .command),
     ]
     let tabMenu = UIMenu(title: "Tabs", options: .displayInline, children: tabChildren)
     builder.insertChild(tabMenu, atEndOfMenu: .view)
-  }
 
-  @objc func handleCmdK() { PlatformInfo.shared?.emitKeyCommand("search") }
-  @objc func handleCmdComma() { PlatformInfo.shared?.emitKeyCommand("settings") }
-  @objc func handleCmdBack() { PlatformInfo.shared?.emitKeyCommand("back") }
-  @objc func handleEscape() { PlatformInfo.shared?.emitKeyCommand("escape") }
-  @objc func handleTab1() { PlatformInfo.shared?.emitKeyCommand("tab1") }
-  @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
-  @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }
-  @objc func handleTab4() { PlatformInfo.shared?.emitKeyCommand("tab4") }
-  @objc func handleTab5() { PlatformInfo.shared?.emitKeyCommand("tab5") }
+    // Player media controls (no modifier keys -- direct press)
+    let playerChildren: [UIKeyCommand] = [
+      UIKeyCommand(title: "Play/Pause", action: #selector(UIResponder.handleSpace), input: " ", modifierFlags: []),
+      UIKeyCommand(title: "Seek Back 10s", action: #selector(UIResponder.handleArrowLeft), input: UIKeyCommand.inputLeftArrow, modifierFlags: []),
+      UIKeyCommand(title: "Seek Forward 10s", action: #selector(UIResponder.handleArrowRight), input: UIKeyCommand.inputRightArrow, modifierFlags: []),
+      UIKeyCommand(title: "Toggle Mute", action: #selector(UIResponder.handleMuteKey), input: "m", modifierFlags: []),
+      UIKeyCommand(title: "Toggle Fullscreen", action: #selector(UIResponder.handleFullscreen), input: "f", modifierFlags: []),
+    ]
+    let playerMenu = UIMenu(title: "Playback", options: .displayInline, children: playerChildren)
+    builder.insertSibling(playerMenu, afterMenu: .view)
+  }
   #endif
 }
 

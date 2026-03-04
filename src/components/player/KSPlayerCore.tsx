@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useKeyCommands } from '../../hooks/useKeyboardShortcuts';
+import { isMacCatalyst } from '../../utils/platform';
 import { View, StatusBar, StyleSheet, Animated, Dimensions, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -578,6 +580,25 @@ const KSPlayerCore: React.FC = () => {
 
     navigation.goBack();
   }, [navigation, currentTime, duration, traktAutosync]);
+
+  // ─── Desktop keyboard controls (Catalyst only) ───────────────────
+  const playerKeyHandlers = useCallback(() => {
+    if (!isMacCatalyst) return {};
+    return {
+      playerToggle: () => controls.togglePlayback(),
+      playerSeekBack: () => controls.skip(-10),
+      playerSeekForward: () => controls.skip(10),
+      playerMute: () => setVolumeState(prev => prev > 0 ? 0 : 1),
+      playerFullscreen: () => {
+        // Catalyst fullscreen is handled by the system (Ctrl+Cmd+F)
+        // but 'f' key can toggle it too via windowScene
+      },
+      escape: () => handleClose(),
+      back: () => handleClose(),
+    };
+  }, [controls, handleClose]);
+
+  useKeyCommands(playerKeyHandlers());
 
   // Track selection handlers - update state, prop change triggers native update
   const handleSelectTextTrack = useCallback((trackId: number) => {

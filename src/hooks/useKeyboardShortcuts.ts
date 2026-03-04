@@ -24,7 +24,8 @@ function getEmitter(): NativeEventEmitter | null {
 
 type CommandId =
   | 'search' | 'settings' | 'back' | 'escape'
-  | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5';
+  | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5'
+  | 'playerToggle' | 'playerSeekBack' | 'playerSeekForward' | 'playerMute' | 'playerFullscreen';
 
 /**
  * Listen for a specific keyboard shortcut by command ID.
