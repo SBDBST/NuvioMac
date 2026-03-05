@@ -2,6 +2,20 @@ import Foundation
 import UIKit
 import React
 
+// MARK: - Debug Logging
+
+/// Set to true to enable verbose native overlay/keyboard logs.
+/// Automatically disabled in release builds regardless of this flag.
+private let kNuvioVerboseLogging = false
+
+private func nuvioLog(_ message: String) {
+  #if DEBUG
+  if kNuvioVerboseLogging {
+    NSLog("%@", message)
+  }
+  #endif
+}
+
 // MARK: - PlatformInfo Event Emitter (keyboard shortcuts + constants)
 
 @objc(PlatformInfo)
@@ -118,7 +132,7 @@ class DesktopPlayerOverlayView: UIView {
 
     singleClick.require(toFail: doubleClick)
 
-    NSLog("[DesktopPlayerOverlay] Initialized with hover + click gestures")
+    nuvioLog("[DesktopPlayerOverlay] Initialized with hover + click gestures")
   }
 
   required init?(coder: NSCoder) {
@@ -156,44 +170,44 @@ class DesktopPlayerOverlayView: UIView {
   }
 
   @objc private func arrowLeft() {
-    NSLog("[DesktopPlayerOverlay] LEFT -> seekBack")
+    nuvioLog("[DesktopPlayerOverlay] LEFT -> seekBack")
     PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
   }
   @objc private func arrowRight() {
-    NSLog("[DesktopPlayerOverlay] RIGHT -> seekForward")
+    nuvioLog("[DesktopPlayerOverlay] RIGHT -> seekForward")
     PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
   }
   @objc private func arrowUp() {
-    NSLog("[DesktopPlayerOverlay] UP -> volumeUp")
+    nuvioLog("[DesktopPlayerOverlay] UP -> volumeUp")
     PlatformInfo.shared?.emitKeyCommand("playerVolumeUp")
   }
   @objc private func arrowDown() {
-    NSLog("[DesktopPlayerOverlay] DOWN -> volumeDown")
+    nuvioLog("[DesktopPlayerOverlay] DOWN -> volumeDown")
     PlatformInfo.shared?.emitKeyCommand("playerVolumeDown")
   }
   @objc private func spaceKey() {
-    NSLog("[DesktopPlayerOverlay] SPACE -> toggle")
+    nuvioLog("[DesktopPlayerOverlay] SPACE -> toggle")
     PlatformInfo.shared?.emitKeyCommand("playerToggle")
   }
   @objc private func escapeKey() {
-    NSLog("[DesktopPlayerOverlay] ESC -> close")
+    nuvioLog("[DesktopPlayerOverlay] ESC -> close")
     PlatformInfo.shared?.emitKeyCommand("escape")
   }
   @objc private func fKey() {
-    NSLog("[DesktopPlayerOverlay] F -> fullscreen")
+    nuvioLog("[DesktopPlayerOverlay] F -> fullscreen")
     toggleMacFullscreen()
     PlatformInfo.shared?.emitKeyCommand("playerFullscreen")
   }
   @objc private func mKey() {
-    NSLog("[DesktopPlayerOverlay] M -> mute")
+    nuvioLog("[DesktopPlayerOverlay] M -> mute")
     PlatformInfo.shared?.emitKeyCommand("playerMute")
   }
   @objc private func jKey() {
-    NSLog("[DesktopPlayerOverlay] J -> seekBack")
+    nuvioLog("[DesktopPlayerOverlay] J -> seekBack")
     PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
   }
   @objc private func lKey() {
-    NSLog("[DesktopPlayerOverlay] L -> seekForward")
+    nuvioLog("[DesktopPlayerOverlay] L -> seekForward")
     PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
   }
 
@@ -212,13 +226,13 @@ class DesktopPlayerOverlayView: UIView {
   }
 
   @objc private func handleClick(_ recognizer: UITapGestureRecognizer) {
-    NSLog("[DesktopPlayerOverlay] Click -> playerClick")
+    nuvioLog("[DesktopPlayerOverlay] Click -> playerClick")
     onMouseClick?([:])
     PlatformInfo.shared?.emitKeyCommand("playerClick")
   }
 
   @objc private func handleDoubleClick(_ recognizer: UITapGestureRecognizer) {
-    NSLog("[DesktopPlayerOverlay] DoubleClick -> fullscreen")
+    nuvioLog("[DesktopPlayerOverlay] DoubleClick -> fullscreen")
     onMouseDoubleClick?([:])
     toggleMacFullscreen()
     PlatformInfo.shared?.emitKeyCommand("playerFullscreen")
@@ -229,7 +243,7 @@ class DesktopPlayerOverlayView: UIView {
     if let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
        let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject {
       nsWindow.perform(NSSelectorFromString("toggleFullScreen:"), with: nil)
-      NSLog("[DesktopPlayerOverlay] toggleFullScreen called")
+      nuvioLog("[DesktopPlayerOverlay] toggleFullScreen called")
     } else {
       NSLog("[DesktopPlayerOverlay] Could not get NSWindow for fullscreen")
     }
@@ -245,7 +259,7 @@ class DesktopPlayerOverlayView: UIView {
 
   deinit {
     mouseIdleTimer?.invalidate()
-    NSLog("[DesktopPlayerOverlay] Deinit")
+    nuvioLog("[DesktopPlayerOverlay] Deinit")
   }
 }
 
