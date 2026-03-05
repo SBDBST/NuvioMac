@@ -113,17 +113,6 @@ public class AppDelegate: ExpoAppDelegate {
     ]
     let tabMenu = UIMenu(title: "Tabs", options: .displayInline, children: tabChildren)
     builder.insertChild(tabMenu, atEndOfMenu: .view)
-
-    // Player media controls (no modifier keys -- direct press)
-    let playerChildren: [UIKeyCommand] = [
-      UIKeyCommand(title: "Play/Pause", action: #selector(UIResponder.handleSpace), input: " ", modifierFlags: []),
-      UIKeyCommand(title: "Seek Back 10s", action: #selector(UIResponder.handleArrowLeft), input: UIKeyCommand.inputLeftArrow, modifierFlags: []),
-      UIKeyCommand(title: "Seek Forward 10s", action: #selector(UIResponder.handleArrowRight), input: UIKeyCommand.inputRightArrow, modifierFlags: []),
-      UIKeyCommand(title: "Toggle Mute", action: #selector(UIResponder.handleMuteKey), input: "m", modifierFlags: []),
-      UIKeyCommand(title: "Toggle Fullscreen", action: #selector(UIResponder.handleFullscreen), input: "f", modifierFlags: []),
-    ]
-    let playerMenu = UIMenu(title: "Playback", options: .displayInline, children: playerChildren)
-    builder.insertSibling(playerMenu, afterMenu: .view)
   }
   #endif
 }

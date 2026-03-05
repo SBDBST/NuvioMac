@@ -9,3 +9,9 @@
 RCT_EXPORT_VIEW_PROPERTY(onHoverIn, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onHoverOut, RCTDirectEventBlock)
 @end
+
+@interface RCT_EXTERN_MODULE(DesktopPlayerOverlayManager, RCTViewManager)
+RCT_EXPORT_VIEW_PROPERTY(onMouseMove, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onMouseClick, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onMouseDoubleClick, RCTDirectEventBlock)
+@end

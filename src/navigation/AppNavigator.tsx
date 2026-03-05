@@ -3,6 +3,7 @@ import { NavigationContainer, DefaultTheme as NavigationDefaultTheme, DarkTheme 
 import { createNativeStackNavigator, NativeStackNavigationOptions, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useColorScheme, Platform, Animated, StatusBar, TouchableOpacity, View, Text, AppState, Easing, Dimensions, DeviceEventEmitter } from 'react-native';
+import { isMacCatalyst } from '../utils/platform';
 import { mmkvStorage } from '../services/mmkvStorage';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme, adaptNavigationTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
@@ -1337,7 +1338,7 @@ const InnerNavigator = ({ initialRouteName }: { initialRouteName?: keyof RootSta
                 animationDuration: Platform.OS === 'android' ? 200 : 300,
                 gestureEnabled: true,
                 gestureDirection: Platform.OS === 'ios' ? 'vertical' : 'horizontal',
-                ...(Platform.OS === 'ios' && { presentation: 'modal' }),
+                ...(Platform.OS === 'ios' && { presentation: isMacCatalyst ? 'fullScreenModal' : 'modal' }),
                 contentStyle: {
                   backgroundColor: currentTheme.colors.darkBackground,
                 },
