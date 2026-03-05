@@ -11,6 +11,7 @@ import axios from 'axios';
 import LoadingOverlay from './modals/LoadingOverlay';
 import UpNextButton from './common/UpNextButton';
 import { PlayerControls } from './controls/PlayerControls';
+import DesktopPlayerControls from './controls/DesktopPlayerControls';
 import AudioTrackModal from './modals/AudioTrackModal';
 import SpeedModal from './modals/SpeedModal';
 import { SubmitIntroModal } from './modals/SubmitIntroModal';
@@ -907,26 +908,28 @@ const KSPlayerCore: React.FC = () => {
         controlsFixedOffset={106}
       />
 
-      {/* Gesture Controls Overlay (Pan/Tap) */}
-      <GestureControls
-        screenDimensions={screenDimensions}
-        gestureControls={gestureControls}
-        onLongPressActivated={speedControl.activateSpeedBoost}
-        onLongPressEnd={speedControl.deactivateSpeedBoost}
-        onLongPressStateChange={() => { }}
-        toggleControls={toggleControls}
-        showControls={showControls}
-        hideControls={hideControls}
-        volume={volume}
-        brightness={brightness}
-        controlsTimeout={controlsTimeout}
-        resizeMode={resizeMode}
-        skip={controls.skip}
-        currentTime={currentTime}
-        duration={duration}
-        seekToTime={controls.seekToTime}
-        formatTime={formatTime}
-      />
+      {/* Gesture Controls Overlay (Pan/Tap) - mobile only */}
+      {!isMacCatalyst && (
+        <GestureControls
+          screenDimensions={screenDimensions}
+          gestureControls={gestureControls}
+          onLongPressActivated={speedControl.activateSpeedBoost}
+          onLongPressEnd={speedControl.deactivateSpeedBoost}
+          onLongPressStateChange={() => { }}
+          toggleControls={toggleControls}
+          showControls={showControls}
+          hideControls={hideControls}
+          volume={volume}
+          brightness={brightness}
+          controlsTimeout={controlsTimeout}
+          resizeMode={resizeMode}
+          skip={controls.skip}
+          currentTime={currentTime}
+          duration={duration}
+          seekToTime={controls.seekToTime}
+          formatTime={formatTime}
+        />
+      )}
 
       {/* Desktop mouse + keyboard overlay (Catalyst only, renders nothing on mobile) */}
       <DesktopPlayerOverlay
@@ -951,64 +954,95 @@ const KSPlayerCore: React.FC = () => {
             </View>
           )}
 
-          <PlayerControls
-            showControls={showControls}
-            fadeAnim={fadeAnim}
-            paused={paused}
-            title={title}
-            episodeTitle={episodeTitle}
-            season={season}
-            episode={episode}
-            quality={quality}
-            year={year}
-            streamProvider={streamProvider}
-            streamName={streamName}
-            currentTime={currentTime}
-            duration={duration}
-            zoomScale={zoomScale}
-            currentResizeMode={resizeMode}
-            ksAudioTracks={tracks.ksAudioTracks}
-            selectedAudioTrack={tracks.selectedAudioTrack}
-            availableStreams={availableStreams}
-            togglePlayback={controls.togglePlayback}
-            skip={controls.skip}
-            handleClose={handleClose}
-            cycleAspectRatio={() => {
-              gestureControls.showResizeModeOverlayFn(() => {
-                setResizeMode(prev => {
-                  switch (prev) {
-                    case 'contain':
-                      return 'cover';
-                    case 'cover':
-                      return 'stretch';
-                    case 'stretch':
-                    default:
-                      return 'contain';
-                  }
+          {isMacCatalyst ? (
+            <DesktopPlayerControls
+              showControls={showControls}
+              fadeAnim={fadeAnim}
+              paused={paused}
+              title={title}
+              episodeTitle={episodeTitle}
+              season={season}
+              episode={episode}
+              year={year ? parseInt(String(year)) : undefined}
+              streamName={streamName}
+              currentTime={currentTime}
+              duration={duration}
+              volume={volume}
+              isBuffering={isBuffering}
+              togglePlayback={controls.togglePlayback}
+              skip={controls.skip}
+              handleClose={handleClose}
+              setShowSubtitleModal={modals.setShowSubtitleModal}
+              setShowEpisodesModal={type === 'series' ? modals.setShowEpisodesModal : undefined}
+              setShowAudioModal={modals.setShowAudioModal}
+              setShowSourcesModal={modals.setShowSourcesModal}
+              onSliderValueChange={onSliderValueChange}
+              onSlidingStart={onSlidingStart}
+              onSlidingComplete={onSlidingComplete}
+              setVolume={setVolumeState}
+              formatTime={formatTime}
+              buffered={buffered}
+            />
+          ) : (
+            <PlayerControls
+              showControls={showControls}
+              fadeAnim={fadeAnim}
+              paused={paused}
+              title={title}
+              episodeTitle={episodeTitle}
+              season={season}
+              episode={episode}
+              quality={quality}
+              year={year}
+              streamProvider={streamProvider}
+              streamName={streamName}
+              currentTime={currentTime}
+              duration={duration}
+              zoomScale={zoomScale}
+              currentResizeMode={resizeMode}
+              ksAudioTracks={tracks.ksAudioTracks}
+              selectedAudioTrack={tracks.selectedAudioTrack}
+              availableStreams={availableStreams}
+              togglePlayback={controls.togglePlayback}
+              skip={controls.skip}
+              handleClose={handleClose}
+              cycleAspectRatio={() => {
+                gestureControls.showResizeModeOverlayFn(() => {
+                  setResizeMode(prev => {
+                    switch (prev) {
+                      case 'contain':
+                        return 'cover';
+                      case 'cover':
+                        return 'stretch';
+                      case 'stretch':
+                      default:
+                        return 'contain';
+                    }
+                  });
                 });
-              });
-            }}
-            cyclePlaybackSpeed={() => speedControl.setPlaybackSpeed(speedControl.playbackSpeed >= 2 ? 1 : speedControl.playbackSpeed + 0.25)}
-            currentPlaybackSpeed={speedControl.playbackSpeed}
-            setShowAudioModal={modals.setShowAudioModal}
-            setShowSubtitleModal={modals.setShowSubtitleModal}
-            setShowSpeedModal={modals.setShowSpeedModal}
-            setShowSubmitIntroModal={modals.setShowSubmitIntroModal}
-            isSubtitleModalOpen={modals.showSubtitleModal}
-            setShowSourcesModal={modals.setShowSourcesModal}
-            setShowEpisodesModal={type === 'series' ? modals.setShowEpisodesModal : undefined}
-            onSliderValueChange={onSliderValueChange}
-            onSlidingStart={onSlidingStart}
-            onSlidingComplete={onSlidingComplete}
-            buffered={buffered}
-            formatTime={formatTime}
-            playerBackend="KSAVPlayer"
-            isAirPlayActive={isAirPlayActive}
-            allowsAirPlay={allowsAirPlay}
-            onAirPlayPress={() => ksPlayerRef.current?.showAirPlayPicker()}
-            isBuffering={isBuffering}
-            imdbId={imdbId}
-          />
+              }}
+              cyclePlaybackSpeed={() => speedControl.setPlaybackSpeed(speedControl.playbackSpeed >= 2 ? 1 : speedControl.playbackSpeed + 0.25)}
+              currentPlaybackSpeed={speedControl.playbackSpeed}
+              setShowAudioModal={modals.setShowAudioModal}
+              setShowSubtitleModal={modals.setShowSubtitleModal}
+              setShowSpeedModal={modals.setShowSpeedModal}
+              setShowSubmitIntroModal={modals.setShowSubmitIntroModal}
+              isSubtitleModalOpen={modals.showSubtitleModal}
+              setShowSourcesModal={modals.setShowSourcesModal}
+              setShowEpisodesModal={type === 'series' ? modals.setShowEpisodesModal : undefined}
+              onSliderValueChange={onSliderValueChange}
+              onSlidingStart={onSlidingStart}
+              onSlidingComplete={onSlidingComplete}
+              buffered={buffered}
+              formatTime={formatTime}
+              playerBackend="KSAVPlayer"
+              isAirPlayActive={isAirPlayActive}
+              allowsAirPlay={allowsAirPlay}
+              onAirPlayPress={() => ksPlayerRef.current?.showAirPlayPicker()}
+              isBuffering={isBuffering}
+              imdbId={imdbId}
+            />
+          )}
         </View>
       )}
 
