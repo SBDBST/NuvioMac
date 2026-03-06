@@ -479,8 +479,10 @@ const HomeScreen = () => {
       const statusBarConfig = () => {
         // Ensure status bar is fully transparent and doesn't take up space
         StatusBar.setBarStyle("light-content");
-        StatusBar.setTranslucent(true);
-        StatusBar.setBackgroundColor('transparent');
+        if (Platform.OS === 'android') {
+          StatusBar.setTranslucent(true);
+          StatusBar.setBackgroundColor('transparent');
+        }
 
         // For iOS specifically
         if (Platform.OS === 'ios') {

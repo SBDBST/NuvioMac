@@ -12,12 +12,12 @@ import {
   Linking,
   ScrollView,
   Keyboard,
-  Clipboard,
   Switch,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Modal,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { useNavigation } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { mmkvStorage } from '../services/mmkvStorage';
@@ -332,7 +332,7 @@ const TMDBSettingsScreen = () => {
   const pasteFromClipboard = async () => {
     logger.log('[TMDBSettingsScreen] Attempting to paste from clipboard');
     try {
-      const clipboardContent = await Clipboard.getString();
+      const clipboardContent = await ExpoClipboard.getStringAsync();
       if (clipboardContent) {
         logger.log('[TMDBSettingsScreen] Content pasted from clipboard');
         setApiKey(clipboardContent);

@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Clipboard,
   Image,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { MaterialIcons } from '@expo/vector-icons';
 import FastImage from '@d11/react-native-fast-image';
 import { Stream } from '../types/metadata';
@@ -69,7 +69,7 @@ const StreamCard = memo(({
   const handleLongPress = useCallback(async () => {
     if (stream.url) {
       try {
-        await Clipboard.setString(stream.url);
+        await ExpoClipboard.setStringAsync(stream.url);
 
         // Use toast for Android, custom alert for iOS
         if (Platform.OS === 'android') {

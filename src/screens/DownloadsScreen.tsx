@@ -10,9 +10,9 @@ import {
   RefreshControl,
   Alert,
   Platform,
-  Clipboard,
   Linking,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -122,7 +122,7 @@ const DownloadItemComponent: React.FC<{
 
   const handleLongPress = useCallback(() => {
     if (item.status === 'completed' && item.fileUri) {
-      Clipboard.setString(item.fileUri);
+      ExpoClipboard.setStringAsync(item.fileUri);
       if (Platform.OS === 'android') {
         showSuccess(t('downloads.path_copied'), t('downloads.path_copied_desc'));
       } else {

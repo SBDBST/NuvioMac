@@ -503,8 +503,10 @@ const TabScreenWrapper: React.FC<{ children: React.ReactNode }> = ({ children })
   useEffect(() => {
     const applyStatusBarConfig = () => {
       StatusBar.setBarStyle('light-content');
-      StatusBar.setTranslucent(true);
-      StatusBar.setBackgroundColor('transparent');
+      if (Platform.OS === 'android') {
+        StatusBar.setTranslucent(true);
+        StatusBar.setBackgroundColor('transparent');
+      }
     };
 
     applyStatusBarConfig();

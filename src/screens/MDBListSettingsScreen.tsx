@@ -12,10 +12,10 @@ import {
   Linking,
   ScrollView,
   Keyboard,
-  Clipboard,
   Switch,
   useColorScheme,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect, NavigationProp } from '@react-navigation/native';
@@ -616,7 +616,7 @@ const MDBListSettingsScreen: React.FC = () => {
   const pasteFromClipboard = async () => {
     logger.log('[MDBListSettingsScreen] Attempting to paste from clipboard');
     try {
-      const clipboardContent = await Clipboard.getString();
+      const clipboardContent = await ExpoClipboard.getStringAsync();
       if (clipboardContent) {
         logger.log('[MDBListSettingsScreen] Content pasted from clipboard');
         setApiKey(clipboardContent);

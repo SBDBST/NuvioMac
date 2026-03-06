@@ -51,8 +51,10 @@ const ContinueWatchingSettingsScreen: React.FC = () => {
   // Prevent iOS entrance flicker by restoring a non-translucent StatusBar
   useEffect(() => {
     try {
-      StatusBar.setTranslucent(false);
-      StatusBar.setBackgroundColor(colors.darkBackground);
+      if (Platform.OS === 'android') {
+        StatusBar.setTranslucent(false);
+        StatusBar.setBackgroundColor(colors.darkBackground);
+      }
       StatusBar.setBarStyle('light-content');
       if (Platform.OS === 'ios') {
         StatusBar.setHidden(false);
