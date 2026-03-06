@@ -234,7 +234,7 @@ const StreamCard = memo(({
             {hasSecondary && (
               <TouchableOpacity
                 style={[styles.expandBtn, { backgroundColor: theme.colors.elevation2 }]}
-                onPress={(e) => { e.stopPropagation(); setExpanded(prev => !prev); }}
+                onPress={() => setExpanded(prev => !prev)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 activeOpacity={0.6}
               >

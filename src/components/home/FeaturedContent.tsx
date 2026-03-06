@@ -31,6 +31,7 @@ import { SkeletonFeatured } from './SkeletonLoaders';
 import { hasValidLogoFormat, isTmdbUrl } from '../../utils/logoUtils';
 import { logger } from '../../utils/logger';
 import { useTheme } from '../../contexts/ThemeContext';
+import { isMacCatalyst } from '../../utils/platform';
 
 interface FeaturedContentProps {
   featuredContent: StreamingContent | null;
@@ -59,7 +60,7 @@ const NoFeaturedContent = ({ onRetry }: { onRetry?: () => void }) => {
 
   const styles = StyleSheet.create({
     noContentContainer: {
-      height: height * 0.55,
+      height: height * (isMacCatalyst ? 0.35 : 0.55),
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 40,
@@ -206,7 +207,8 @@ const FeaturedContent = ({ featuredContent, isSaved, handleSaveToLibrary, loadin
   // Stable hero height for tablets to prevent layout jumps; keep hooks unconditional
   const tabletHeroHeight = useMemo(() => {
     const aspectBased = width * 0.56; // ~16:9 visual
-    const screenBased = height * 0.62;
+    // Catalyst needs a shorter hero so the first catalog row is visible without scrolling
+    const screenBased = height * (isMacCatalyst ? 0.45 : 0.62);
     return Math.min(screenBased, aspectBased);
   }, [width, height, featuredContent?.id]);
 

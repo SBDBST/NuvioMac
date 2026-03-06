@@ -74,7 +74,7 @@ const SourceStreamItem: React.FC<{
               ))}
               {hasSec && (
                 <TouchableOpacity
-                  onPress={(e) => { e.stopPropagation(); setExpanded(prev => !prev); }}
+                  onPress={() => setExpanded(prev => !prev)}
                   style={{
                     width: 20, height: 20, borderRadius: 5, justifyContent: 'center', alignItems: 'center',
                     backgroundColor: isSelected ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
