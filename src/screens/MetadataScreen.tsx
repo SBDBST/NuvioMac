@@ -65,6 +65,7 @@ import { useWatchProgress } from '../hooks/useWatchProgress';
 import { TraktService, TraktPlaybackItem } from '../services/traktService';
 import { tmdbService } from '../services/tmdbService';
 import { catalogService } from '../services/catalogService';
+import { logger } from '../utils/logger';
 
 const { height } = Dimensions.get('window');
 
@@ -93,7 +94,7 @@ const MetadataScreen: React.FC = () => {
 
   // Log route parameters for debugging
   React.useEffect(() => {
-    console.log('🔍 [MetadataScreen] Route params:', { id, type, episodeId, addonId });
+    logger.log('🔍 [MetadataScreen] Route params:', { id, type, episodeId, addonId });
   }, [id, type, episodeId, addonId]);
 
   // Consolidated hooks for better performance
@@ -163,11 +164,11 @@ const MetadataScreen: React.FC = () => {
 
   // Debug state changes
   React.useEffect(() => {
-    console.log('MetadataScreen: commentBottomSheetVisible changed to:', commentBottomSheetVisible);
+    logger.log('MetadataScreen: commentBottomSheetVisible changed to:', commentBottomSheetVisible);
   }, [commentBottomSheetVisible]);
 
   React.useEffect(() => {
-    console.log('MetadataScreen: selectedComment changed to:', selectedComment?.id);
+    logger.log('MetadataScreen: selectedComment changed to:', selectedComment?.id);
   }, [selectedComment]);
 
   const {
@@ -196,7 +197,7 @@ const MetadataScreen: React.FC = () => {
 
   // Log useMetadata hook state changes for debugging
   React.useEffect(() => {
-    console.log('🔍 [MetadataScreen] useMetadata state:', {
+    logger.log('🔍 [MetadataScreen] useMetadata state:', {
       loading,
       hasMetadata: !!metadata,
       metadataId: metadata?.id,
@@ -541,7 +542,7 @@ const MetadataScreen: React.FC = () => {
 
   // Log readiness state for debugging
   React.useEffect(() => {
-    console.log('🔍 [MetadataScreen] Readiness state:', {
+    logger.log('🔍 [MetadataScreen] Readiness state:', {
       isReady,
       loading,
       hasMetadata: !!metadata,
@@ -710,15 +711,15 @@ const MetadataScreen: React.FC = () => {
   }, [isScreenFocused]);
 
   const handleCommentPress = useCallback((comment: any) => {
-    console.log('MetadataScreen: handleCommentPress called with comment:', comment?.id);
+    logger.log('MetadataScreen: handleCommentPress called with comment:', comment?.id);
     if (!isScreenFocused) {
-      console.log('MetadataScreen: Screen not focused, ignoring');
+      logger.log('MetadataScreen: Screen not focused, ignoring');
       return;
     }
-    console.log('MetadataScreen: Setting selected comment and opening bottomsheet');
+    logger.log('MetadataScreen: Setting selected comment and opening bottomsheet');
     setSelectedComment(comment);
     setCommentBottomSheetVisible(true);
-    console.log('MetadataScreen: State should be updated now');
+    logger.log('MetadataScreen: State should be updated now');
   }, [isScreenFocused]);
 
   const handleCommentBottomSheetClose = useCallback(() => {
@@ -768,7 +769,7 @@ const MetadataScreen: React.FC = () => {
 
     // Parse error to extract code and user-friendly message
     const parseError = (error: string) => {
-      console.log('🔍 Parsing error in MetadataScreen:', error);
+      logger.log('🔍 Parsing error in MetadataScreen:', error);
 
       // Check for HTTP status codes - handle multiple formats
       // Match patterns like: "status code 500", "status": 500, "Request failed with status code 500"
@@ -779,7 +780,7 @@ const MetadataScreen: React.FC = () => {
 
       if (statusCodeMatch) {
         const code = parseInt(statusCodeMatch[1]);
-        console.log('✅ Found status code:', code);
+        logger.log('✅ Found status code:', code);
         switch (code) {
           case 404:
             return { code: '404', message: t('metadata.content_not_found'), userMessage: t('metadata.content_not_found_desc') };
@@ -887,7 +888,7 @@ const MetadataScreen: React.FC = () => {
 
   // Show error if exists
   if (metadataError || (!loading && !metadata)) {
-    console.log('🔍 [MetadataScreen] Showing error component:', {
+    logger.log('🔍 [MetadataScreen] Showing error component:', {
       hasError: !!metadataError,
       errorMessage: metadataError,
       isLoading: loading,
@@ -899,7 +900,7 @@ const MetadataScreen: React.FC = () => {
 
   // Show loading screen if metadata is not yet available or exit animation hasn't completed
   if (loading || !isContentReady || !loadingScreenExited) {
-    console.log('🔍 [MetadataScreen] Showing loading screen:', {
+    logger.log('🔍 [MetadataScreen] Showing loading screen:', {
       isLoading: loading,
       isContentReady,
       loadingScreenExited,

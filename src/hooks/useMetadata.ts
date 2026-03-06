@@ -214,7 +214,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
         (streams, addonId, addonName, error, installationId) => {
           const processTime = Date.now() - sourceStartTime;
 
-          console.log('🔍 [processStremioSource] Callback received:', {
+          logger.log('🔍 [processStremioSource] Callback received:', {
             addonId,
             addonName,
             installationId,
@@ -228,7 +228,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
           if (addonName) {
             setActiveFetchingScrapers(prev => {
               const updated = prev.filter(name => name !== addonName);
-              console.log('🔍 [processStremioSource] Removing from activeFetchingScrapers:', {
+              logger.log('🔍 [processStremioSource] Removing from activeFetchingScrapers:', {
                 addonName,
                 before: prev,
                 after: updated
@@ -488,7 +488,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
 
   const loadMetadata = async () => {
     try {
-      console.log('🔍 [useMetadata] loadMetadata started:', {
+      logger.log('🔍 [useMetadata] loadMetadata started:', {
         id,
         type,
         addonId,
@@ -498,7 +498,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       });
 
       if (loadAttempts >= MAX_RETRIES) {
-        console.log('🔍 [useMetadata] Max retries exceeded:', { loadAttempts, maxRetries: MAX_RETRIES });
+        logger.log('🔍 [useMetadata] Max retries exceeded:', { loadAttempts, maxRetries: MAX_RETRIES });
         setError(`Failed to load content after ${MAX_RETRIES + 1} attempts. Please check your connection and try again.`);
         setLoading(false);
         return;
@@ -511,7 +511,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       // Check metadata screen cache
       const cachedScreen = cacheService.getMetadataScreen(id, type);
       if (cachedScreen) {
-        console.log('🔍 [useMetadata] Using cached metadata:', {
+        logger.log('🔍 [useMetadata] Using cached metadata:', {
           id,
           type,
           hasMetadata: !!cachedScreen.metadata,
@@ -536,20 +536,20 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
         setLoading(false);
         return;
       } else {
-        console.log('🔍 [useMetadata] No cached metadata found, proceeding with fresh fetch');
+        logger.log('🔍 [useMetadata] No cached metadata found, proceeding with fresh fetch');
       }
 
       // Handle TMDB-specific IDs
       let actualId = id;
       if (id.startsWith('tmdb:')) {
         // Always try the original TMDB ID first - let addons decide if they support it
-        console.log('🔍 [useMetadata] TMDB ID detected, trying original ID first:', { originalId: id });
+        logger.log('🔍 [useMetadata] TMDB ID detected, trying original ID first:', { originalId: id });
 
         // If enrichment disabled, try original ID first, then fallback to conversion if needed
         if (!settings.enrichMetadataWithTMDB) {
           // Keep the original TMDB ID - let the addon system handle it dynamically
           actualId = id;
-          console.log('🔍 [useMetadata] TMDB enrichment disabled, using original TMDB ID:', { actualId });
+          logger.log('🔍 [useMetadata] TMDB enrichment disabled, using original TMDB ID:', { actualId });
         } else {
           const tmdbId = id.split(':')[1];
           // For TMDB IDs, we need to handle metadata differently
@@ -728,7 +728,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       }
 
       // Load all data in parallel
-      console.log('🔍 [useMetadata] Starting parallel data fetch:', { type, actualId, addonId, apiTimeout: API_TIMEOUT });
+      logger.log('🔍 [useMetadata] Starting parallel data fetch:', { type, actualId, addonId, apiTimeout: API_TIMEOUT });
       if (__DEV__) logger.log('[loadMetadata] fetching addon metadata', { type, actualId, addonId });
 
       let contentResult = null;
@@ -740,7 +740,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       if (preferExternal) {
         // Try external meta addons first
         try {
-          console.log('🔍 [useMetadata] Trying external meta addons first');
+          logger.log('🔍 [useMetadata] Trying external meta addons first');
           const [content, castData] = await Promise.allSettled([
             withRetry(async () => {
               // Get all installed addons
@@ -770,20 +770,20 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
                   );
                   
                   if (result) {
-                    console.log('🔍 [useMetadata] Got metadata from external addon:', addon.name);
+                    logger.log('🔍 [useMetadata] Got metadata from external addon:', addon.name);
                     if (actualId.startsWith('tt')) {
                       setImdbId(actualId);
                     }
                     return result;
                   }
                 } catch (error) {
-                  console.log('🔍 [useMetadata] External addon failed:', addon.name, error);
+                  logger.log('🔍 [useMetadata] External addon failed:', addon.name, error);
                   continue;
                 }
               }
               
               // If no external addon worked, fall back to catalog addon
-              console.log('🔍 [useMetadata] No external meta addon worked, falling back to catalog addon');
+              logger.log('🔍 [useMetadata] No external meta addon worked, falling back to catalog addon');
               const result = await withTimeout(
                 catalogService.getEnhancedContentDetails(type, actualId, addonId),
                 API_TIMEOUT
@@ -798,23 +798,23 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
 
           contentResult = content;
           if (content.status === 'fulfilled' && content.value) {
-            console.log('🔍 [useMetadata] Successfully got metadata with external meta addon priority');
+            logger.log('🔍 [useMetadata] Successfully got metadata with external meta addon priority');
           } else {
-            console.log('🔍 [useMetadata] External meta addon priority failed, will try fallback');
+            logger.log('🔍 [useMetadata] External meta addon priority failed, will try fallback');
             lastError = (content as any)?.reason;
           }
         } catch (error) {
-          console.log('🔍 [useMetadata] External meta addon attempt failed:', { error: error instanceof Error ? error.message : String(error) });
+          logger.log('🔍 [useMetadata] External meta addon attempt failed:', { error: error instanceof Error ? error.message : String(error) });
           lastError = error;
         }
       } else {
         // Original behavior: try with original ID first
         try {
-          console.log('🔍 [useMetadata] Attempting metadata fetch with original ID:', { type, actualId, addonId });
+          logger.log('🔍 [useMetadata] Attempting metadata fetch with original ID:', { type, actualId, addonId });
           const [content, castData] = await Promise.allSettled([
             // Load content with timeout and retry
             withRetry(async () => {
-              console.log('🔍 [useMetadata] Calling catalogService.getEnhancedContentDetails:', { type, actualId, addonId });
+              logger.log('🔍 [useMetadata] Calling catalogService.getEnhancedContentDetails:', { type, actualId, addonId });
               const result = await withTimeout(
                 catalogService.getEnhancedContentDetails(type, actualId, addonId),
                 API_TIMEOUT
@@ -823,7 +823,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
               if (actualId.startsWith('tt')) {
                 setImdbId(actualId);
               }
-              console.log('🔍 [useMetadata] catalogService.getEnhancedContentDetails result:', {
+              logger.log('🔍 [useMetadata] catalogService.getEnhancedContentDetails result:', {
                 hasResult: Boolean(result),
                 resultId: result?.id,
                 resultName: result?.name,
@@ -838,13 +838,13 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
 
           contentResult = content;
           if (content.status === 'fulfilled' && content.value) {
-            console.log('🔍 [useMetadata] Successfully got metadata with original ID');
+            logger.log('🔍 [useMetadata] Successfully got metadata with original ID');
           } else {
-            console.log('🔍 [useMetadata] Original ID failed, will try fallback conversion');
+            logger.log('🔍 [useMetadata] Original ID failed, will try fallback conversion');
             lastError = (content as any)?.reason;
           }
         } catch (error) {
-          console.log('🔍 [useMetadata] Original ID attempt failed:', { error: error instanceof Error ? error.message : String(error) });
+          logger.log('🔍 [useMetadata] Original ID attempt failed:', { error: error instanceof Error ? error.message : String(error) });
           lastError = error;
         }
       }
@@ -852,12 +852,12 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       // If original TMDB ID failed and enrichment is disabled, try ID conversion as fallback
       if (!contentResult || (contentResult.status === 'fulfilled' && !contentResult.value) || contentResult.status === 'rejected') {
         if (id.startsWith('tmdb:') && !settings.enrichMetadataWithTMDB) {
-          console.log('🔍 [useMetadata] Original TMDB ID failed, trying ID conversion fallback');
+          logger.log('🔍 [useMetadata] Original TMDB ID failed, trying ID conversion fallback');
           const tmdbRaw = id.split(':')[1];
           try {
             const stremioId = await catalogService.getStremioId(type === 'series' ? 'tv' : 'movie', tmdbRaw);
             if (stremioId && stremioId !== id) {
-              console.log('🔍 [useMetadata] Trying converted ID:', { originalId: id, convertedId: stremioId });
+              logger.log('🔍 [useMetadata] Trying converted ID:', { originalId: id, convertedId: stremioId });
               const [content, castData] = await Promise.allSettled([
                 withRetry(async () => {
                   const result = await withTimeout(
@@ -874,7 +874,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
               contentResult = content;
             }
           } catch (e) {
-            console.log('🔍 [useMetadata] ID conversion fallback also failed:', { error: e instanceof Error ? e.message : String(e) });
+            logger.log('🔍 [useMetadata] ID conversion fallback also failed:', { error: e instanceof Error ? e.message : String(e) });
           }
         }
       }
@@ -882,7 +882,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       const content = contentResult || { status: 'rejected' as const, reason: lastError || new Error('No content result') };
       const castData = { status: 'fulfilled' as const, value: undefined };
 
-      console.log('🔍 [useMetadata] Promise.allSettled results:', {
+      logger.log('🔍 [useMetadata] Promise.allSettled results:', {
         contentStatus: content.status,
         contentFulfilled: content.status === 'fulfilled',
         hasContentValue: content.status === 'fulfilled' ? !!content.value : false,
@@ -891,7 +891,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       });
 
       if (content.status === 'fulfilled' && content.value) {
-        console.log('🔍 [useMetadata] Content fetch successful:', {
+        logger.log('🔍 [useMetadata] Content fetch successful:', {
           id: content.value?.id,
           type: content.value?.type,
           name: content.value?.name,
@@ -1011,7 +1011,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
               // Use TMDB logo if found, otherwise fall back to addon logo
               finalMetadata.logo = logoUrl || addonLogo || undefined;
               if (__DEV__) {
-                console.log('[useMetadata] Logo fetch result:', {
+                logger.log('[useMetadata] Logo fetch result:', {
                   contentType,
                   tmdbIdForLogo,
                   preferredLanguage,
@@ -1029,7 +1029,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
             // When enrichment or logos is OFF, use addon logo
             finalMetadata.logo = addonLogo || finalMetadata.logo || undefined;
             if (__DEV__) {
-              console.log('[useMetadata] TMDB logo enrichment disabled, using addon logo:', {
+              logger.log('[useMetadata] TMDB logo enrichment disabled, using addon logo:', {
                 hasAddonLogo: !!finalMetadata.logo,
                 enrichmentEnabled: settings.enrichMetadataWithTMDB,
                 logosEnabled: settings.tmdbEnrichLogos
@@ -1075,7 +1075,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
         const reason = (content as any)?.reason;
         const reasonMessage = reason?.message || String(reason);
 
-        console.log('🔍 [useMetadata] Content fetch failed:', {
+        logger.log('🔍 [useMetadata] Content fetch failed:', {
           status: content.status,
           reason: reasonMessage,
           fullReason: reason,
@@ -1085,7 +1085,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
         });
 
         if (__DEV__) {
-          console.log('[loadMetadata] addon metadata:not found or failed', {
+          logger.log('[loadMetadata] addon metadata:not found or failed', {
             status: content.status,
             reason: reasonMessage,
             fullReason: reason
@@ -1100,17 +1100,17 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
           reasonMessage.includes('Network Error') ||
           reasonMessage.includes('Request failed')
         )) {
-          console.log('🔍 [useMetadata] Detected server/network error, preserving original error');
+          logger.log('🔍 [useMetadata] Detected server/network error, preserving original error');
           // This was a server/network error, preserve the original error message
           throw reason instanceof Error ? reason : new Error(reasonMessage);
         } else {
-          console.log('🔍 [useMetadata] Detected content not found error, throwing generic error');
+          logger.log('🔍 [useMetadata] Detected content not found error, throwing generic error');
           // This was likely a content not found error
           throw new Error('Content not found');
         }
       }
     } catch (error) {
-      console.log('🔍 [useMetadata] loadMetadata caught error:', {
+      logger.log('🔍 [useMetadata] loadMetadata caught error:', {
         errorMessage: error instanceof Error ? error.message : String(error),
         errorType: typeof error,
         isAxiosError: (error as any)?.isAxiosError,
@@ -1121,7 +1121,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
 
       if (__DEV__) {
         console.error('Failed to load metadata:', error);
-        console.log('Error message being set:', error instanceof Error ? error.message : String(error));
+        logger.log('Error message being set:', error instanceof Error ? error.message : String(error));
       }
 
       // Preserve the original error details for better error parsing
@@ -1134,7 +1134,7 @@ export const useMetadata = ({ id, type, addonId }: UseMetadataProps): UseMetadat
       setGroupedEpisodes({});
       setEpisodes([]);
     } finally {
-      console.log('🔍 [useMetadata] loadMetadata completed, setting loading to false');
+      logger.log('🔍 [useMetadata] loadMetadata completed, setting loading to false');
       setLoading(false);
     }
   };

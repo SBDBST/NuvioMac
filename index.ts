@@ -1,3 +1,6 @@
+import { patchConsoleForDev } from './src/utils/logger';
+patchConsoleForDev();
+
 import { registerRootComponent } from 'expo';
 
 // Polyfill for Promise.allSettled (ES2020 feature)

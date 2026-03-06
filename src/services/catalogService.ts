@@ -655,7 +655,7 @@ class CatalogService {
   }
 
   async getContentDetails(type: string, id: string, preferredAddonId?: string): Promise<StreamingContent | null> {
-    console.log(`🔍 [CatalogService] getContentDetails called:`, { type, id, preferredAddonId });
+    logger.log(`🔍 [CatalogService] getContentDetails called:`, { type, id, preferredAddonId });
     try {
       // Try up to 2 times with increasing delays to reduce CPU load
       let meta = null;
@@ -663,20 +663,20 @@ class CatalogService {
 
       for (let i = 0; i < 2; i++) {
         try {
-          console.log(`🔍 [CatalogService] Attempt ${i + 1}/2 for getContentDetails:`, { type, id, preferredAddonId });
+          logger.log(`🔍 [CatalogService] Attempt ${i + 1}/2 for getContentDetails:`, { type, id, preferredAddonId });
 
           // Skip meta requests for non-content ids (e.g., provider slugs)
           const isValidId = await stremioService.isValidContentId(type, id);
-          console.log(`🔍 [CatalogService] Content ID validation:`, { type, id, isValidId });
+          logger.log(`🔍 [CatalogService] Content ID validation:`, { type, id, isValidId });
 
           if (!isValidId) {
-            console.log(`🔍 [CatalogService] Invalid content ID, breaking retry loop`);
+            logger.log(`🔍 [CatalogService] Invalid content ID, breaking retry loop`);
             break;
           }
 
-          console.log(`🔍 [CatalogService] Calling stremioService.getMetaDetails:`, { type, id, preferredAddonId });
+          logger.log(`🔍 [CatalogService] Calling stremioService.getMetaDetails:`, { type, id, preferredAddonId });
           meta = await stremioService.getMetaDetails(type, id, preferredAddonId);
-          console.log(`🔍 [CatalogService] stremioService.getMetaDetails result:`, {
+          logger.log(`🔍 [CatalogService] stremioService.getMetaDetails result:`, {
             hasMeta: !!meta,
             metaId: meta?.id,
             metaName: meta?.name,
@@ -687,7 +687,7 @@ class CatalogService {
           await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
         } catch (error) {
           lastError = error;
-          console.log(`🔍 [CatalogService] Attempt ${i + 1} failed:`, {
+          logger.log(`🔍 [CatalogService] Attempt ${i + 1} failed:`, {
             errorMessage: error instanceof Error ? error.message : String(error),
             isAxiosError: (error as any)?.isAxiosError,
             responseStatus: (error as any)?.response?.status,
@@ -699,7 +699,7 @@ class CatalogService {
       }
 
       if (meta) {
-        console.log(`🔍 [CatalogService] Meta found, converting to StreamingContent:`, {
+        logger.log(`🔍 [CatalogService] Meta found, converting to StreamingContent:`, {
           metaId: meta.id,
           metaName: meta.name,
           metaType: meta.type
@@ -712,7 +712,7 @@ class CatalogService {
         // Check if it's in the library
         content.inLibrary = this.library[`${type}:${id}`] !== undefined;
 
-        console.log(`🔍 [CatalogService] Successfully converted meta to StreamingContent:`, {
+        logger.log(`🔍 [CatalogService] Successfully converted meta to StreamingContent:`, {
           contentId: content.id,
           contentName: content.name,
           contentType: content.type,
@@ -722,13 +722,13 @@ class CatalogService {
         return content;
       }
 
-      console.log(`🔍 [CatalogService] No meta found, checking lastError:`, {
+      logger.log(`🔍 [CatalogService] No meta found, checking lastError:`, {
         hasLastError: !!lastError,
         lastErrorMessage: lastError instanceof Error ? lastError.message : String(lastError)
       });
 
       if (lastError) {
-        console.log(`🔍 [CatalogService] Throwing lastError:`, {
+        logger.log(`🔍 [CatalogService] Throwing lastError:`, {
           errorMessage: lastError instanceof Error ? lastError.message : String(lastError),
           isAxiosError: (lastError as any)?.isAxiosError,
           responseStatus: (lastError as any)?.response?.status
@@ -736,10 +736,10 @@ class CatalogService {
         throw lastError;
       }
 
-      console.log(`🔍 [CatalogService] No meta and no error, returning null`);
+      logger.log(`🔍 [CatalogService] No meta and no error, returning null`);
       return null;
     } catch (error) {
-      console.log(`🔍 [CatalogService] getContentDetails caught error:`, {
+      logger.log(`🔍 [CatalogService] getContentDetails caught error:`, {
         errorMessage: error instanceof Error ? error.message : String(error),
         isAxiosError: (error as any)?.isAxiosError,
         responseStatus: (error as any)?.response?.status,
@@ -752,12 +752,12 @@ class CatalogService {
 
   // Public method for getting enhanced metadata details (used by MetadataScreen)
   async getEnhancedContentDetails(type: string, id: string, preferredAddonId?: string): Promise<StreamingContent | null> {
-    console.log(`🔍 [CatalogService] getEnhancedContentDetails called:`, { type, id, preferredAddonId });
+    logger.log(`🔍 [CatalogService] getEnhancedContentDetails called:`, { type, id, preferredAddonId });
     logger.log(`🔍 [MetadataScreen] Fetching enhanced metadata for ${type}:${id} ${preferredAddonId ? `from addon ${preferredAddonId}` : ''}`);
 
     try {
       const result = await this.getContentDetails(type, id, preferredAddonId);
-      console.log(`🔍 [CatalogService] getEnhancedContentDetails result:`, {
+      logger.log(`🔍 [CatalogService] getEnhancedContentDetails result:`, {
         hasResult: !!result,
         resultId: result?.id,
         resultName: result?.name,
@@ -765,7 +765,7 @@ class CatalogService {
       });
       return result;
     } catch (error) {
-      console.log(`🔍 [CatalogService] getEnhancedContentDetails error:`, {
+      logger.log(`🔍 [CatalogService] getEnhancedContentDetails error:`, {
         errorMessage: error instanceof Error ? error.message : String(error),
         isAxiosError: (error as any)?.isAxiosError,
         responseStatus: (error as any)?.response?.status,
@@ -996,7 +996,7 @@ class CatalogService {
     if (content.type === 'series') {
       try {
         await notificationService.updateNotificationsForSeries(content.id);
-        console.log(`[CatalogService] Auto-setup notifications for series: ${content.name}`);
+        logger.log(`[CatalogService] Auto-setup notifications for series: ${content.name}`);
       } catch (error) {
         console.error(`[CatalogService] Failed to setup notifications for ${content.name}:`, error);
       }
@@ -1027,7 +1027,7 @@ class CatalogService {
         for (const notification of seriesToCancel) {
           await notificationService.cancelNotification(notification.id);
         }
-        console.log(`[CatalogService] Cancelled ${seriesToCancel.length} notifications for removed series: ${id}`);
+        logger.log(`[CatalogService] Cancelled ${seriesToCancel.length} notifications for removed series: ${id}`);
       } catch (error) {
         console.error(`[CatalogService] Failed to cancel notifications for removed series ${id}:`, error);
       }
@@ -1598,9 +1598,9 @@ class CatalogService {
 
   async getStremioId(type: string, tmdbId: string): Promise<string | null> {
     if (__DEV__) {
-      console.log('=== CatalogService.getStremioId ===');
-      console.log('Input type:', type);
-      console.log('Input tmdbId:', tmdbId);
+      logger.log('=== CatalogService.getStremioId ===');
+      logger.log('Input type:', type);
+      logger.log('Input tmdbId:', tmdbId);
     }
 
     try {
