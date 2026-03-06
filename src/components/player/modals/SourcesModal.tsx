@@ -9,6 +9,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { Stream } from '../../../types/streams';
+import { parseStreamTitle, resolutionColor } from '../../../utils/streamTitleParser';
+import { isMacCatalyst } from '../../../utils/platform';
 
 interface SourcesModalProps {
   showSourcesModal: boolean;
@@ -19,36 +21,8 @@ interface SourcesModalProps {
   isChangingSource?: boolean;
 }
 
-const QualityBadge = ({ quality }: { quality: string | null | undefined }) => {
-  if (!quality) return null;
-
-  const qualityNum = parseInt(quality);
-  let color = '#8B5CF6';
-  let label = `${quality}p`;
-
-  if (qualityNum >= 2160) {
-    color = '#F59E0B';
-    label = '4K';
-  } else if (qualityNum >= 1080) {
-    color = '#3B82F6';
-    label = '1080p';
-  } else if (qualityNum >= 720) {
-    color = '#10B981';
-    label = '720p';
-  }
-
-  return (
-    <View style={{
-      backgroundColor: color,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-      marginLeft: 8,
-    }}>
-      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>{label}</Text>
-    </View>
-  );
-};
+const MENU_WIDTH_CATALYST = 440;
+const MENU_WIDTH_DEFAULT = 400;
 
 export const SourcesModal: React.FC<SourcesModalProps> = ({
   showSourcesModal,
@@ -60,7 +34,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
-  const MENU_WIDTH = Math.min(width * 0.85, 400);
+  const MENU_WIDTH = Math.min(width * 0.85, isMacCatalyst ? MENU_WIDTH_CATALYST : MENU_WIDTH_DEFAULT);
 
   const handleClose = () => {
     setShowSourcesModal(false);
@@ -74,12 +48,6 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
     if (stream.url !== currentStreamUrl && !isChangingSource) {
       onSelectStream(stream);
     }
-  };
-
-  const getQualityFromTitle = (title?: string): string | null => {
-    if (!title) return null;
-    const match = title.match(/(\d+)p/);
-    return match ? match[1] : null;
   };
 
   const isStreamSelected = (stream: Stream): boolean => {
@@ -167,65 +135,90 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
                 <View style={{ gap: 8 }}>
                   {providerData.streams.map((stream, index) => {
                     const isSelected = isStreamSelected(stream);
-                    const quality = getQualityFromTitle(stream.title) || stream.quality;
+                    const parsed = parseStreamTitle(
+                      stream.name,
+                      stream.title,
+                      typeof stream.size === 'number' ? stream.size : undefined,
+                      stream.behaviorHints?.cached,
+                    );
+
+                    // Build pills
+                    const pills: { label: string; color?: string }[] = [];
+                    if (parsed.resolution) pills.push({ label: parsed.resolution, color: resolutionColor(parsed.resolution) });
+                    if (parsed.source) pills.push({ label: parsed.source });
+                    if (parsed.codec) pills.push({ label: parsed.codec });
+                    if (parsed.hdr) pills.push({ label: parsed.hdr, color: '#D946EF' });
+                    if (parsed.audio) pills.push({ label: parsed.audio });
+                    if (parsed.size) pills.push({ label: parsed.size });
+                    if (parsed.isCached) pills.push({ label: 'CACHED', color: '#22C55E' });
 
                     return (
                       <TouchableOpacity
                         key={`${providerId}-${index}`}
                         style={{
-                          padding: 8,
+                          padding: isMacCatalyst ? 12 : 10,
                           borderRadius: 12,
                           backgroundColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
                           borderWidth: 1,
-                          borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
+                          borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.06)',
                           opacity: (isChangingSource && !isSelected) ? 0.5 : 1,
                         }}
                         onPress={() => handleStreamSelect(stream)}
                         activeOpacity={0.7}
                         disabled={isChangingSource === true}
                       >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Text style={{
-                                color: isSelected ? 'black' : 'white',
-                                fontWeight: isSelected ? '700' : '500',
-                                fontSize: 14,
-                                flex: 1,
-                              }} numberOfLines={1}>
-                                {stream.title || stream.name || t('player_ui.stream', { number: index + 1 })}
-                              </Text>
-                              <QualityBadge quality={quality} />
-                            </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1, gap: 6 }}>
+                            {/* Line 1: name */}
+                            <Text style={{
+                              color: isSelected ? '#000' : '#fff',
+                              fontWeight: '600',
+                              fontSize: 13,
+                            }} numberOfLines={1}>
+                              {parsed.displayName}
+                            </Text>
 
-                            {(stream.size || stream.lang) && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                {stream.size && (
-                                  <Text style={{
-                                    color: isSelected ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
-                                    fontSize: 11,
-                                  }}>
-                                    {(stream.size / (1024 * 1024 * 1024)).toFixed(1)} GB
-                                  </Text>
-                                )}
-                                {stream.lang && (
-                                  <Text style={{
-                                    color: isSelected ? 'rgba(59, 130, 246, 1)' : 'rgba(59, 130, 246, 0.8)',
-                                    fontSize: 11,
-                                    fontWeight: '600',
-                                  }}>
-                                    {stream.lang.toUpperCase()}
-                                  </Text>
-                                )}
+                            {/* Line 2: pills */}
+                            {pills.length > 0 && (
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                                {pills.map((pill, i) => (
+                                  <View
+                                    key={`${pill.label}-${i}`}
+                                    style={{
+                                      paddingHorizontal: 7,
+                                      paddingVertical: 2,
+                                      borderRadius: 5,
+                                      backgroundColor: isSelected
+                                        ? (pill.color ? pill.color + '25' : 'rgba(0,0,0,0.08)')
+                                        : (pill.color ? pill.color + '20' : 'rgba(255,255,255,0.08)'),
+                                      borderWidth: 1,
+                                      borderColor: isSelected
+                                        ? (pill.color ? pill.color + '50' : 'rgba(0,0,0,0.12)')
+                                        : (pill.color ? pill.color + '35' : 'transparent'),
+                                    }}
+                                  >
+                                    <Text style={{
+                                      fontSize: 9,
+                                      fontWeight: '700',
+                                      letterSpacing: 0.3,
+                                      textTransform: 'uppercase',
+                                      color: isSelected
+                                        ? (pill.color || 'rgba(0,0,0,0.6)')
+                                        : (pill.color || 'rgba(255,255,255,0.5)'),
+                                    }}>
+                                      {pill.label}
+                                    </Text>
+                                  </View>
+                                ))}
                               </View>
                             )}
                           </View>
 
                           <View style={{ marginLeft: 12 }}>
                             {isSelected ? (
-                              <MaterialIcons name="check" size={20} color="black" />
+                              <MaterialIcons name="check" size={18} color="black" />
                             ) : (
-                              <MaterialIcons name="play-arrow" size={20} color="rgba(255,255,255,0.3)" />
+                              <MaterialIcons name="play-arrow" size={18} color="rgba(255,255,255,0.25)" />
                             )}
                           </View>
                         </View>

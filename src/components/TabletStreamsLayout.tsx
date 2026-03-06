@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView as ExpoBlurView } from 'expo-blur';
+import { isMacCatalyst } from '../utils/platform';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -615,7 +616,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     zIndex: 2,
   },
   streamsContainer: {
-    paddingHorizontal: 12,
+    paddingHorizontal: isMacCatalyst ? 16 : 12,
     paddingBottom: 20,
     width: '100%',
   },
@@ -757,7 +758,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   tabletLeftPanel: {
-    width: '40%',
+    width: isMacCatalyst ? '35%' : '40%',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -819,7 +820,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
   tabletRightPanel: {
-    width: '60%',
+    width: isMacCatalyst ? '65%' : '60%',
     flex: 1,
     paddingTop: Platform.OS === 'android' ? 60 : 20,
     zIndex: 2,
@@ -832,7 +833,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   tabletBlurContent: {
     flex: 1,
-    padding: 16,
+    padding: isMacCatalyst ? 20 : 16,
     backgroundColor: 'transparent',
   },
   androidBlurView: {

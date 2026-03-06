@@ -12,10 +12,11 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import FastImage from '@d11/react-native-fast-image';
 import { Stream } from '../types/metadata';
-import QualityBadge from './metadata/QualityBadge';
 import { useSettings } from '../hooks/useSettings';
 import { useDownloads } from '../contexts/DownloadsContext';
 import { useToast } from '../contexts/ToastContext';
+import { parseStreamTitle, resolutionColor } from '../utils/streamTitleParser';
+import { isMacCatalyst } from '../utils/platform';
 
 interface StreamCardProps {
   stream: Stream;
@@ -91,35 +92,41 @@ const StreamCard = memo(({
   const styles = React.useMemo(() => createStyles(theme.colors), [theme.colors]);
 
   const streamInfo = useMemo(() => {
-    const title = stream.title || '';
-    const name = stream.name || '';
+    const parsed = parseStreamTitle(
+      stream.name,
+      stream.title,
+      typeof stream.size === 'number' ? stream.size : undefined,
+      stream.behaviorHints?.cached,
+    );
 
-    // Helper function to format size from bytes
-    const formatSize = (bytes: number): string => {
-      if (bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
+    // Build pills array -- each pill is { label, color? }
+    const pills: { label: string; color?: string }[] = [];
 
-    // Get size from title (legacy format) or from stream.size field
-    let sizeDisplay = title.match(/💾\s*([\d.]+\s*[GM]B)/)?.[1];
-    if (!sizeDisplay && stream.size && typeof stream.size === 'number' && stream.size > 0) {
-      sizeDisplay = formatSize(stream.size);
+    if (parsed.resolution) {
+      pills.push({ label: parsed.resolution, color: resolutionColor(parsed.resolution) });
+    }
+    if (parsed.source) {
+      pills.push({ label: parsed.source });
+    }
+    if (parsed.codec) {
+      pills.push({ label: parsed.codec });
+    }
+    if (parsed.hdr) {
+      pills.push({ label: parsed.hdr, color: '#D946EF' });
+    }
+    if (parsed.audio) {
+      pills.push({ label: parsed.audio });
+    }
+    if (parsed.size) {
+      pills.push({ label: parsed.size });
+    }
+    if (parsed.isCached) {
+      pills.push({ label: 'CACHED', color: '#22C55E' });
     }
 
-    // Extract quality for badge display
-    const basicQuality = title.match(/(\d+)p/)?.[1] || null;
-
     return {
-      quality: basicQuality,
-      isHDR: title.toLowerCase().includes('hdr'),
-      isDolby: title.toLowerCase().includes('dolby') || title.includes('DV'),
-      size: sizeDisplay,
-      isDebrid: stream.behaviorHints?.cached,
-      displayName: name || 'Unnamed Stream',
-      subTitle: title && title !== name ? title : null
+      ...parsed,
+      pills,
     };
   }, [stream.name, stream.title, stream.behaviorHints, stream.size]);
 
@@ -170,7 +177,7 @@ const StreamCard = memo(({
         season: inferredType === 'series' ? (season ? Number(season) : undefined) : undefined,
         episode: inferredType === 'series' ? (episode ? Number(episode) : undefined) : undefined,
         episodeTitle: inferredType === 'series' ? (episodeTitle ? String(episodeTitle) : undefined) : undefined,
-        quality: streamInfo.quality || undefined,
+        quality: streamInfo.resolution || undefined,
         posterUrl: parentPosterUrl || parent.poster || parent.backdrop || null,
         url,
         headers: (stream.headers as any) || undefined,
@@ -182,9 +189,9 @@ const StreamCard = memo(({
     } catch (e: any) {
       showAlert('Download Failed', e.message || 'Could not start download.');
     }
-  }, [startDownload, stream.url, stream.headers, streamInfo.quality, showAlert, stream.name, stream.title, parentId, parentImdbId, parentTitle, parentType, parentSeason, parentEpisode, parentEpisodeTitle, parentPosterUrl, providerName]);
+  }, [startDownload, stream.url, stream.headers, streamInfo.resolution, showAlert, stream.name, stream.title, parentId, parentImdbId, parentTitle, parentType, parentSeason, parentEpisode, parentEpisodeTitle, parentPosterUrl, providerName]);
 
-  const isDebrid = streamInfo.isDebrid;
+  const isDebrid = streamInfo.isCached;
   return (
     <TouchableOpacity
       style={[
@@ -217,19 +224,11 @@ const StreamCard = memo(({
       )}
 
       <View style={styles.streamDetails}>
-        <View style={styles.streamNameRow}>
-          <View style={styles.streamTitleContainer}>
-            <Text style={[styles.streamName, { color: theme.colors.highEmphasis }]}>
-              {streamInfo.displayName}
-            </Text>
-            {streamInfo.subTitle && (
-              <Text style={[styles.streamAddonName, { color: theme.colors.mediumEmphasis }]}>
-                {streamInfo.subTitle}
-              </Text>
-            )}
-          </View>
-
-          {/* Show loading indicator if stream is loading */}
+        {/* Line 1: Display name + loading */}
+        <View style={styles.nameRow}>
+          <Text style={[styles.streamName, { color: theme.colors.highEmphasis }]} numberOfLines={1}>
+            {streamInfo.displayName}
+          </Text>
           {isLoading && (
             <View style={styles.loadingIndicator}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -240,35 +239,42 @@ const StreamCard = memo(({
           )}
         </View>
 
-        <View style={styles.streamMetaRow}>
-          {streamInfo.isDolby && (
-            <QualityBadge type="VISION" />
-          )}
-
-          {streamInfo.size && (
-            <View style={[styles.chip, { backgroundColor: theme.colors.darkGray }]}>
-              <Text style={[styles.chipText, { color: theme.colors.white }]}>💾 {streamInfo.size}</Text>
-            </View>
-          )}
-
-          {streamInfo.isDebrid && (
-            <View style={[styles.chip, { backgroundColor: theme.colors.success }]}>
-              <Text style={[styles.chipText, { color: theme.colors.white }]}>DEBRID</Text>
-            </View>
-          )}
-        </View>
+        {/* Line 2: Metadata pills */}
+        {streamInfo.pills.length > 0 && (
+          <View style={styles.pillsRow}>
+            {streamInfo.pills.map((pill, i) => (
+              <View
+                key={`${pill.label}-${i}`}
+                style={[
+                  styles.pill,
+                  pill.color
+                    ? { backgroundColor: pill.color + '20', borderColor: pill.color + '40' }
+                    : { backgroundColor: theme.colors.elevation2, borderColor: 'transparent' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    { color: pill.color || theme.colors.mediumEmphasis },
+                  ]}
+                >
+                  {pill.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
-
 
       {settings?.enableDownloads !== false && (
         <TouchableOpacity
-          style={[styles.streamAction, { marginLeft: 8, backgroundColor: theme.colors.elevation2 }]}
+          style={[styles.streamAction, { backgroundColor: theme.colors.elevation2 }]}
           onPress={handleDownload}
           activeOpacity={0.7}
         >
           <MaterialIcons
             name="download"
-            size={20}
+            size={18}
             color={theme.colors.highEmphasis}
           />
         </TouchableOpacity>
@@ -280,20 +286,14 @@ const StreamCard = memo(({
 const createStyles = (colors: any) => StyleSheet.create({
   streamCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-    minHeight: 68,
+    alignItems: 'center',
+    padding: isMacCatalyst ? 16 : 14,
+    borderRadius: 14,
+    marginBottom: isMacCatalyst ? 12 : 10,
+    minHeight: 60,
     backgroundColor: colors.card,
-    borderWidth: 0,
     width: '100%',
     zIndex: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 0,
   },
   scraperLogoContainer: {
     width: 32,
@@ -302,78 +302,57 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.elevation2,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   scraperLogo: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
   },
   streamCardLoading: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   streamCardHighlighted: {
     backgroundColor: colors.elevation2,
-    shadowOpacity: 0.18,
   },
   streamDetails: {
     flex: 1,
+    gap: 6,
   },
-  streamNameRow: {
+  nameRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  streamTitleContainer: {
-    flex: 1,
+    gap: 8,
   },
   streamName: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-    lineHeight: 20,
-    color: colors.highEmphasis,
-    letterSpacing: 0.1,
-  },
-  streamAddonName: {
-    fontSize: 12,
+    fontSize: isMacCatalyst ? 14 : 13,
+    fontWeight: '600',
     lineHeight: 18,
-    color: colors.mediumEmphasis,
-    marginBottom: 6,
+    color: colors.highEmphasis,
+    flex: 1,
   },
-  streamMetaRow: {
+  pillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: 6,
-    alignItems: 'center',
+    gap: isMacCatalyst ? 6 : 5,
   },
-  chip: {
+  pill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 12,
-    marginRight: 6,
-    marginBottom: 6,
-    backgroundColor: colors.elevation2,
+    borderRadius: 6,
+    borderWidth: 1,
   },
-  chipText: {
-    color: colors.highEmphasis,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+  pillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   loadingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginLeft: 8,
   },
   loadingText: {
-    color: colors.primary,
     fontSize: 12,
     marginLeft: 4,
     fontWeight: '500',
@@ -381,10 +360,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   streamAction: {
     width: 30,
     height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primary,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 10,
   },
 });
 
