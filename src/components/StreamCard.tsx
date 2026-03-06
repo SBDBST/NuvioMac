@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { Stream } from '../types/metadata';
 import { useSettings } from '../hooks/useSettings';
 import { useDownloads } from '../contexts/DownloadsContext';
 import { useToast } from '../contexts/ToastContext';
-import { parseStreamTitle, resolutionColor } from '../utils/streamTitleParser';
+import { parseStreamTitle } from '../utils/streamTitleParser';
 import { isMacCatalyst } from '../utils/platform';
 
 interface StreamCardProps {
@@ -92,43 +92,14 @@ const StreamCard = memo(({
   const styles = React.useMemo(() => createStyles(theme.colors), [theme.colors]);
 
   const streamInfo = useMemo(() => {
-    const parsed = parseStreamTitle(
+    return parseStreamTitle(
       stream.name,
       stream.title,
       typeof stream.size === 'number' ? stream.size : undefined,
       stream.behaviorHints?.cached,
+      stream.lang,
     );
-
-    // Build pills array -- each pill is { label, color? }
-    const pills: { label: string; color?: string }[] = [];
-
-    if (parsed.resolution) {
-      pills.push({ label: parsed.resolution, color: resolutionColor(parsed.resolution) });
-    }
-    if (parsed.source) {
-      pills.push({ label: parsed.source });
-    }
-    if (parsed.codec) {
-      pills.push({ label: parsed.codec });
-    }
-    if (parsed.hdr) {
-      pills.push({ label: parsed.hdr, color: '#D946EF' });
-    }
-    if (parsed.audio) {
-      pills.push({ label: parsed.audio });
-    }
-    if (parsed.size) {
-      pills.push({ label: parsed.size });
-    }
-    if (parsed.isCached) {
-      pills.push({ label: 'CACHED', color: '#22C55E' });
-    }
-
-    return {
-      ...parsed,
-      pills,
-    };
-  }, [stream.name, stream.title, stream.behaviorHints, stream.size]);
+  }, [stream.name, stream.title, stream.behaviorHints, stream.size, stream.lang]);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -191,6 +162,9 @@ const StreamCard = memo(({
     }
   }, [startDownload, stream.url, stream.headers, streamInfo.resolution, showAlert, stream.name, stream.title, parentId, parentImdbId, parentTitle, parentType, parentSeason, parentEpisode, parentEpisodeTitle, parentPosterUrl, providerName]);
 
+  const [expanded, setExpanded] = useState(false);
+  const hasSecondary = streamInfo.secondaryPills.length > 0;
+
   const isDebrid = streamInfo.isCached;
   return (
     <TouchableOpacity
@@ -239,12 +213,12 @@ const StreamCard = memo(({
           )}
         </View>
 
-        {/* Line 2: Metadata pills */}
-        {streamInfo.pills.length > 0 && (
+        {/* Line 2: Primary pills + expand chevron */}
+        {(streamInfo.primaryPills.length > 0 || hasSecondary) && (
           <View style={styles.pillsRow}>
-            {streamInfo.pills.map((pill, i) => (
+            {streamInfo.primaryPills.map((pill, i) => (
               <View
-                key={`${pill.label}-${i}`}
+                key={`p-${pill.label}-${i}`}
                 style={[
                   styles.pill,
                   pill.color
@@ -252,12 +226,42 @@ const StreamCard = memo(({
                     : { backgroundColor: theme.colors.elevation2, borderColor: 'transparent' },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.pillText,
-                    { color: pill.color || theme.colors.mediumEmphasis },
-                  ]}
-                >
+                <Text style={[styles.pillText, { color: pill.color || theme.colors.mediumEmphasis }]}>
+                  {pill.label}
+                </Text>
+              </View>
+            ))}
+            {hasSecondary && (
+              <TouchableOpacity
+                style={[styles.expandBtn, { backgroundColor: theme.colors.elevation2 }]}
+                onPress={(e) => { e.stopPropagation(); setExpanded(prev => !prev); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.6}
+              >
+                <MaterialIcons
+                  name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                  size={14}
+                  color={theme.colors.mediumEmphasis}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Expanded: Secondary pills */}
+        {expanded && hasSecondary && (
+          <View style={styles.pillsRow}>
+            {streamInfo.secondaryPills.map((pill, i) => (
+              <View
+                key={`s-${pill.label}-${i}`}
+                style={[
+                  styles.pill,
+                  pill.color
+                    ? { backgroundColor: pill.color + '18', borderColor: pill.color + '35' }
+                    : { backgroundColor: theme.colors.elevation2, borderColor: 'transparent' },
+                ]}
+              >
+                <Text style={[styles.pillText, { color: pill.color || theme.colors.mediumEmphasis }]}>
                   {pill.label}
                 </Text>
               </View>
@@ -347,6 +351,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
+  },
+  expandBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingIndicator: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import Animated, {
@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { Stream } from '../../../types/streams';
-import { parseStreamTitle, resolutionColor } from '../../../utils/streamTitleParser';
+import { parseStreamTitle, Pill } from '../../../utils/streamTitleParser';
 import { isMacCatalyst } from '../../../utils/platform';
 
 interface SourcesModalProps {
@@ -20,6 +20,96 @@ interface SourcesModalProps {
   onSelectStream: (stream: Stream) => void;
   isChangingSource?: boolean;
 }
+
+// Individual stream item with expandable secondary pills
+const SourceStreamItem: React.FC<{
+  stream: Stream; isSelected: boolean; isChangingSource: boolean;
+  onPress: () => void; t: any;
+}> = ({ stream, isSelected, isChangingSource, onPress }) => {
+  const [expanded, setExpanded] = useState(false);
+  const parsed = parseStreamTitle(
+    stream.name, stream.title,
+    typeof stream.size === 'number' ? stream.size : undefined,
+    stream.behaviorHints?.cached, stream.lang,
+  );
+  const hasSec = parsed.secondaryPills.length > 0;
+
+  const pillStyle = (pill: Pill) => ({
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1,
+    backgroundColor: isSelected
+      ? (pill.color ? pill.color + '25' : 'rgba(0,0,0,0.08)')
+      : (pill.color ? pill.color + '20' : 'rgba(255,255,255,0.08)'),
+    borderColor: isSelected
+      ? (pill.color ? pill.color + '50' : 'rgba(0,0,0,0.12)')
+      : (pill.color ? pill.color + '35' : 'transparent'),
+  });
+
+  const pillTextStyle = (pill: Pill) => ({
+    fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+    color: isSelected ? (pill.color || 'rgba(0,0,0,0.6)') : (pill.color || 'rgba(255,255,255,0.5)'),
+  });
+
+  return (
+    <TouchableOpacity
+      style={{
+        padding: isMacCatalyst ? 12 : 10, borderRadius: 12,
+        backgroundColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
+        borderWidth: 1, borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.06)',
+        opacity: (isChangingSource && !isSelected) ? 0.5 : 1,
+      }}
+      onPress={onPress} activeOpacity={0.7} disabled={isChangingSource}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={{ color: isSelected ? '#000' : '#fff', fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
+            {parsed.displayName}
+          </Text>
+          {(parsed.primaryPills.length > 0 || hasSec) && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+              {parsed.primaryPills.map((pill, i) => (
+                <View key={`p-${pill.label}-${i}`} style={pillStyle(pill)}>
+                  <Text style={pillTextStyle(pill)}>{pill.label}</Text>
+                </View>
+              ))}
+              {hasSec && (
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation(); setExpanded(prev => !prev); }}
+                  style={{
+                    width: 20, height: 20, borderRadius: 5, justifyContent: 'center', alignItems: 'center',
+                    backgroundColor: isSelected ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
+                  }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  activeOpacity={0.6}
+                >
+                  <MaterialIcons
+                    name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                    size={14} color={isSelected ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)'}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          {expanded && hasSec && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+              {parsed.secondaryPills.map((pill, i) => (
+                <View key={`s-${pill.label}-${i}`} style={pillStyle(pill)}>
+                  <Text style={pillTextStyle(pill)}>{pill.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+        <View style={{ marginLeft: 12 }}>
+          {isSelected
+            ? <MaterialIcons name="check" size={18} color="black" />
+            : <MaterialIcons name="play-arrow" size={18} color="rgba(255,255,255,0.25)" />
+          }
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const MENU_WIDTH_CATALYST = 440;
 const MENU_WIDTH_DEFAULT = 400;
@@ -133,98 +223,16 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
                 </Text>
 
                 <View style={{ gap: 8 }}>
-                  {providerData.streams.map((stream, index) => {
-                    const isSelected = isStreamSelected(stream);
-                    const parsed = parseStreamTitle(
-                      stream.name,
-                      stream.title,
-                      typeof stream.size === 'number' ? stream.size : undefined,
-                      stream.behaviorHints?.cached,
-                    );
-
-                    // Build pills
-                    const pills: { label: string; color?: string }[] = [];
-                    if (parsed.resolution) pills.push({ label: parsed.resolution, color: resolutionColor(parsed.resolution) });
-                    if (parsed.source) pills.push({ label: parsed.source });
-                    if (parsed.codec) pills.push({ label: parsed.codec });
-                    if (parsed.hdr) pills.push({ label: parsed.hdr, color: '#D946EF' });
-                    if (parsed.audio) pills.push({ label: parsed.audio });
-                    if (parsed.size) pills.push({ label: parsed.size });
-                    if (parsed.isCached) pills.push({ label: 'CACHED', color: '#22C55E' });
-
-                    return (
-                      <TouchableOpacity
-                        key={`${providerId}-${index}`}
-                        style={{
-                          padding: isMacCatalyst ? 12 : 10,
-                          borderRadius: 12,
-                          backgroundColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
-                          borderWidth: 1,
-                          borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.06)',
-                          opacity: (isChangingSource && !isSelected) ? 0.5 : 1,
-                        }}
-                        onPress={() => handleStreamSelect(stream)}
-                        activeOpacity={0.7}
-                        disabled={isChangingSource === true}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <View style={{ flex: 1, gap: 6 }}>
-                            {/* Line 1: name */}
-                            <Text style={{
-                              color: isSelected ? '#000' : '#fff',
-                              fontWeight: '600',
-                              fontSize: 13,
-                            }} numberOfLines={1}>
-                              {parsed.displayName}
-                            </Text>
-
-                            {/* Line 2: pills */}
-                            {pills.length > 0 && (
-                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
-                                {pills.map((pill, i) => (
-                                  <View
-                                    key={`${pill.label}-${i}`}
-                                    style={{
-                                      paddingHorizontal: 7,
-                                      paddingVertical: 2,
-                                      borderRadius: 5,
-                                      backgroundColor: isSelected
-                                        ? (pill.color ? pill.color + '25' : 'rgba(0,0,0,0.08)')
-                                        : (pill.color ? pill.color + '20' : 'rgba(255,255,255,0.08)'),
-                                      borderWidth: 1,
-                                      borderColor: isSelected
-                                        ? (pill.color ? pill.color + '50' : 'rgba(0,0,0,0.12)')
-                                        : (pill.color ? pill.color + '35' : 'transparent'),
-                                    }}
-                                  >
-                                    <Text style={{
-                                      fontSize: 9,
-                                      fontWeight: '700',
-                                      letterSpacing: 0.3,
-                                      textTransform: 'uppercase',
-                                      color: isSelected
-                                        ? (pill.color || 'rgba(0,0,0,0.6)')
-                                        : (pill.color || 'rgba(255,255,255,0.5)'),
-                                    }}>
-                                      {pill.label}
-                                    </Text>
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-
-                          <View style={{ marginLeft: 12 }}>
-                            {isSelected ? (
-                              <MaterialIcons name="check" size={18} color="black" />
-                            ) : (
-                              <MaterialIcons name="play-arrow" size={18} color="rgba(255,255,255,0.25)" />
-                            )}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {providerData.streams.map((stream, index) => (
+                    <SourceStreamItem
+                      key={`${providerId}-${index}`}
+                      stream={stream}
+                      isSelected={isStreamSelected(stream)}
+                      isChangingSource={isChangingSource}
+                      onPress={() => handleStreamSelect(stream)}
+                      t={t}
+                    />
+                  ))}
                 </View>
               </View>
             ))

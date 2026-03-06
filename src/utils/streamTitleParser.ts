@@ -4,227 +4,293 @@
  * Parses raw Stremio stream titles (typically torrent filenames) into
  * structured metadata for clean UI display.
  *
- * Typical input:
- *   "Breaking.Bad.S01E01.720p.BluRay.x264-DEMAND\n💾 892.4 MB\n⚙️ Torrentio"
+ * Maximum possible fields (17):
+ *   resolution, source, hdr, codec, audioFormat, audioChannels,
+ *   bitDepth, size, language, isCached, releaseGroup, edition,
+ *   proper, is3D, isDualAudio, hasMultiSubs, container
  *
- * Output: { resolution, codec, hdr, audio, source, size, releaseGroup, ... }
+ * Pills are split into two tiers:
+ *   PRIMARY  -- the glanceable stuff for quick stream selection
+ *   SECONDARY -- technical detail revealed via dropdown
  */
 
-export interface ParsedStreamInfo {
-  /** e.g. "720p", "1080p", "4K" */
-  resolution: string | null;
-  /** e.g. "x264", "x265", "HEVC", "AV1" */
-  codec: string | null;
-  /** e.g. "HDR", "HDR10", "HDR10+", "DV" (Dolby Vision) */
-  hdr: string | null;
-  /** e.g. "5.1", "7.1", "Atmos", "DTS", "AAC", "DTS-HD" */
-  audio: string | null;
-  /** e.g. "BluRay", "WEB-DL", "WEBRip", "HDTV", "CAM", "REMUX" */
-  source: string | null;
-  /** Human-readable file size, e.g. "1.4 GB" */
-  size: string | null;
-  /** e.g. "DEMAND", "YTS", "RARBG", "NTb" */
-  releaseGroup: string | null;
-  /** Whether this stream is debrid-cached */
-  isCached: boolean;
-  /** Cleaned display name (first meaningful line, dots replaced) */
-  displayName: string;
-  /** The addon/provider name if extractable */
-  provider: string | null;
+export interface Pill {
+  label: string;
+  color?: string;
+  tier: 'primary' | 'secondary';
 }
 
-// -- Resolution --
-const RESOLUTION_MAP: [RegExp, string][] = [
-  [/\b2160p\b/i, '4K'],
-  [/\b4k\b/i, '4K'],
-  [/\buhd\b/i, '4K'],
-  [/\b1080p\b/i, '1080p'],
-  [/\b720p\b/i, '720p'],
-  [/\b480p\b/i, '480p'],
-  [/\b360p\b/i, '360p'],
+export interface ParsedStreamInfo {
+  resolution: string | null;
+  source: string | null;
+  hdr: string | null;
+  codec: string | null;
+  audioFormat: string | null;
+  audioChannels: string | null;
+  bitDepth: string | null;
+  size: string | null;
+  language: string | null;
+  isCached: boolean;
+  releaseGroup: string | null;
+  edition: string | null;
+  proper: string | null;
+  is3D: string | null;
+  isDualAudio: boolean;
+  hasMultiSubs: boolean;
+  hasHardcodedSubs: boolean;
+  container: string | null;
+  displayName: string;
+  primaryPills: Pill[];
+  secondaryPills: Pill[];
+}
+
+// ── Lookup tables ───────────────────────────────────────────────────
+
+const RESOLUTION: [RegExp, string][] = [
+  [/\b2160p\b/i, '4K'], [/\b4k\b/i, '4K'], [/\buhd\b/i, '4K'],
+  [/\b1080p\b/i, '1080p'], [/\b1080i\b/i, '1080i'],
+  [/\b720p\b/i, '720p'], [/\b576p\b/i, '576p'],
+  [/\b480p\b/i, '480p'], [/\b360p\b/i, '360p'],
 ];
 
-// -- Codec --
-const CODEC_MAP: [RegExp, string][] = [
-  [/\bav1\b/i, 'AV1'],
-  [/\bhevc\b/i, 'HEVC'],
-  [/\bx\.?265\b/i, 'x265'],
-  [/\bh\.?265\b/i, 'H.265'],
-  [/\bx\.?264\b/i, 'x264'],
-  [/\bh\.?264\b/i, 'H.264'],
-  [/\bxvid\b/i, 'XviD'],
-  [/\bdivx\b/i, 'DivX'],
-  [/\bvp9\b/i, 'VP9'],
+const SOURCE: [RegExp, string][] = [
+  [/\bremux\b/i, 'REMUX'], [/\bblu[\s.-]?ray\b/i, 'BluRay'],
+  [/\bbdrip\b/i, 'BDRip'], [/\bbrrip\b/i, 'BRRip'],
+  [/\bweb[\s.-]?dl\b/i, 'WEB-DL'], [/\bwebrip\b/i, 'WEBRip'],
+  [/\bweb\b(?![\s.-]?dl)/i, 'WEB'], [/\bhdtv\b/i, 'HDTV'],
+  [/\bpdtv\b/i, 'PDTV'], [/\bdvdrip\b/i, 'DVDRip'],
+  [/\bdvd[\s.-]?r\b/i, 'DVDR'], [/\bcam(?:rip)?\b/i, 'CAM'],
+  [/\bhdcam\b/i, 'HDCAM'], [/\bts(?:rip)?\b/i, 'TS'],
+  [/\bscreener\b/i, 'SCR'], [/\bdvdscr\b/i, 'DVDSCR'],
+  [/\bppvrip\b/i, 'PPVRip'], [/\bsatrip\b/i, 'SATRip'],
 ];
 
-// -- HDR --
-const HDR_MAP: [RegExp, string][] = [
-  [/\bhdr10\+/i, 'HDR10+'],
-  [/\bhdr10\b/i, 'HDR10'],
-  [/\bdolby[\s.]?vision\b/i, 'DV'],
-  [/\bDV\b/, 'DV'],  // case-sensitive to avoid false matches
-  [/\bhdr\b/i, 'HDR'],
-  [/\bhlg\b/i, 'HLG'],
+const HDR: [RegExp, string][] = [
+  [/\bhdr10\+/i, 'HDR10+'], [/\bhdr10\b/i, 'HDR10'],
+  [/\bdolby[\s.]?vision\b/i, 'DV'], [/\bDV\b/, 'DV'],
+  [/\bhdr\b/i, 'HDR'], [/\bhlg\b/i, 'HLG'],
 ];
 
-// -- Audio --
-const AUDIO_MAP: [RegExp, string][] = [
-  [/\batmos\b/i, 'Atmos'],
-  [/\bdts[\s.-]?hd[\s.]?ma\b/i, 'DTS-HD MA'],
-  [/\bdts[\s.-]?hd\b/i, 'DTS-HD'],
-  [/\bdts[\s.-]?x\b/i, 'DTS:X'],
-  [/\bdts\b/i, 'DTS'],
-  [/\btruehd\b/i, 'TrueHD'],
-  [/\bflac\b/i, 'FLAC'],
-  [/\beac3\b/i, 'EAC3'],
-  [/\bdd[\s.]?5[\s.]?1\b/i, 'DD 5.1'],
-  [/\bddp?[\s.]?5[\s.]?1\b/i, 'DD+ 5.1'],
-  [/\bac3\b/i, 'AC3'],
-  [/\baac\b/i, 'AAC'],
-  [/\b7[\s.]?1\b(?![\dp])/, '7.1'],  // avoid matching "7.1 GB"
-  [/\b5[\s.]?1\b(?![\s.]?[GM]B)/, '5.1'],
+const CODEC: [RegExp, string][] = [
+  [/\bav1\b/i, 'AV1'], [/\bhevc\b/i, 'HEVC'],
+  [/\bx\.?265\b/i, 'x265'], [/\bh\.?265\b/i, 'H.265'],
+  [/\bx\.?264\b/i, 'x264'], [/\bh\.?264\b/i, 'H.264'],
+  [/\bmpeg[\s.-]?4\b/i, 'MPEG-4'], [/\bxvid\b/i, 'XviD'],
+  [/\bdivx\b/i, 'DivX'], [/\bvp9\b/i, 'VP9'], [/\bvc[\s.-]?1\b/i, 'VC-1'],
 ];
 
-// -- Source type --
-const SOURCE_MAP: [RegExp, string][] = [
-  [/\bremux\b/i, 'REMUX'],
-  [/\bblu[\s.-]?ray\b/i, 'BluRay'],
-  [/\bbdrip\b/i, 'BDRip'],
-  [/\bbrrip\b/i, 'BRRip'],
-  [/\bweb[\s.-]?dl\b/i, 'WEB-DL'],
-  [/\bwebrip\b/i, 'WEBRip'],
-  [/\bweb\b(?![\s.-]?dl)/i, 'WEB'],
-  [/\bhdtv\b/i, 'HDTV'],
-  [/\bpdtv\b/i, 'PDTV'],
-  [/\bdvdrip\b/i, 'DVDRip'],
-  [/\bcam(?:rip)?\b/i, 'CAM'],
-  [/\bhdcam\b/i, 'HDCAM'],
-  [/\bts(?:rip)?\b/i, 'TS'],
-  [/\bscreener\b/i, 'SCR'],
-  [/\bdvdscr\b/i, 'DVDSCR'],
+const AUDIO_FORMAT: [RegExp, string][] = [
+  [/\batmos\b/i, 'Atmos'], [/\btruehd\b/i, 'TrueHD'],
+  [/\bdts[\s.-]?hd[\s.]?ma\b/i, 'DTS-HD MA'], [/\bdts[\s.-]?hd\b/i, 'DTS-HD'],
+  [/\bdts[\s.-]?x\b/i, 'DTS:X'], [/\bdts\b/i, 'DTS'],
+  [/\blpcm\b/i, 'LPCM'], [/\bflac\b/i, 'FLAC'], [/\bpcm\b/i, 'PCM'],
+  [/\beac[\s.-]?3\b/i, 'EAC3'], [/\bdd[\s.]?\+/i, 'DD+'], [/\bddp\b/i, 'DD+'],
+  [/\bdd[\s.]?5[\s.]?1\b/i, 'DD 5.1'], [/\bac[\s.-]?3\b/i, 'AC3'],
+  [/\baac\b/i, 'AAC'], [/\bopus\b/i, 'Opus'], [/\bvorbis\b/i, 'Vorbis'],
+  [/\bmp3\b/i, 'MP3'],
 ];
 
-// -- Size extraction --
-const SIZE_REGEX = /💾\s*([\d.]+\s*[KMGT]?B)/i;
-const SIZE_REGEX_PLAIN = /\b([\d.]+)\s*(GB|MB|TB|KB)\b/i;
+const AUDIO_CHANNELS: [RegExp, string][] = [
+  [/\b7[\s.]1[\s.]4\b/i, '7.1.4'], [/\b7[\s.]1[\s.]2\b/i, '7.1.2'],
+  [/\b7\.1\b(?![\s.]?[GMKT]B)/i, '7.1'],
+  [/\b5\.1\b(?![\s.]?[GMKT]B)/i, '5.1'],
+  [/\b2\.1\b(?![\s.]?[GMKT]B)/i, '2.1'],
+  [/\b2\.0\b(?![\s.]?[GMKT]B)/i, '2.0'],
+  [/\bstereo\b/i, 'Stereo'], [/\bmono\b/i, 'Mono'],
+];
 
-// -- Release group (last hyphen-separated word) --
-const GROUP_REGEX = /(?:^|[.\s-])([A-Za-z0-9]{2,12})$/;
+const BIT_DEPTH: [RegExp, string][] = [
+  [/\b12[\s.-]?bit\b/i, '12bit'], [/\b10[\s.-]?bit\b/i, '10bit'],
+  [/\b8[\s.-]?bit\b/i, '8bit'],
+];
 
-function firstMatch(text: string, map: [RegExp, string][]): string | null {
-  for (const [regex, label] of map) {
-    if (regex.test(text)) return label;
-  }
+const EDITION: [RegExp, string][] = [
+  [/\bimax\b/i, 'IMAX'], [/\bdirector'?s[\s.]?cut\b/i, "Dir. Cut"],
+  [/\bextended[\s.]?(?:cut|edition)?\b/i, 'Extended'],
+  [/\bunrated\b/i, 'Unrated'], [/\btheatrical\b/i, 'Theatrical'],
+  [/\bcriterion\b/i, 'Criterion'], [/\bspecial[\s.]?edition\b/i, 'Special Ed.'],
+  [/\bremastered\b/i, 'Remastered'], [/\bopen[\s.]?matte\b/i, 'Open Matte'],
+];
+
+const PROPER: [RegExp, string][] = [
+  [/\bproper\b/i, 'PROPER'], [/\brepack\b/i, 'REPACK'],
+  [/\breal\b/i, 'REAL'],
+];
+
+const THREE_D: [RegExp, string][] = [
+  [/\bhalf[\s.-]?sbs\b/i, 'Half-SBS'], [/\bfull[\s.-]?sbs\b/i, 'Full-SBS'],
+  [/\bsbs\b/i, 'SBS 3D'], [/\bhou\b/i, 'HOU 3D'], [/\b3d\b/i, '3D'],
+];
+
+const CONTAINER: [RegExp, string][] = [
+  [/\.mkv\b/i, 'MKV'], [/\.mp4\b/i, 'MP4'], [/\.avi\b/i, 'AVI'],
+  [/\.webm\b/i, 'WebM'], [/\.mov\b/i, 'MOV'],
+];
+
+const LANGUAGE_MAP: [RegExp, string][] = [
+  [/\benglish\b/i, 'English'], [/\bfrench\b/i, 'French'],
+  [/\bspanish\b/i, 'Spanish'], [/\bgerman\b/i, 'German'],
+  [/\bitalian\b/i, 'Italian'], [/\bportuguese\b/i, 'Portuguese'],
+  [/\brussian\b/i, 'Russian'], [/\bjapanese\b/i, 'Japanese'],
+  [/\bkorean\b/i, 'Korean'], [/\bchinese\b/i, 'Chinese'],
+  [/\bhindi\b/i, 'Hindi'], [/\barabic\b/i, 'Arabic'],
+  [/\bturkish\b/i, 'Turkish'], [/\bpolish\b/i, 'Polish'],
+  [/\bdutch\b/i, 'Dutch'], [/\bswedish\b/i, 'Swedish'],
+  [/\bnorwegian\b/i, 'Norwegian'], [/\bdanish\b/i, 'Danish'],
+  [/\bfinnish\b/i, 'Finnish'], [/\bczech\b/i, 'Czech'],
+  [/\bthai\b/i, 'Thai'], [/\bvietnamese\b/i, 'Vietnamese'],
+  [/\bindonesian\b/i, 'Indonesian'], [/\bgreek\b/i, 'Greek'],
+  [/\bhebrew\b/i, 'Hebrew'], [/\bromanian\b/i, 'Romanian'],
+  [/\bhungarian\b/i, 'Hungarian'], [/\bukrainian\b/i, 'Ukrainian'],
+  [/\btelugu\b/i, 'Telugu'], [/\btamil\b/i, 'Tamil'],
+  [/\burdu\b/i, 'Urdu'], [/\bbengali\b/i, 'Bengali'],
+  [/\bmalay\b/i, 'Malay'], [/\btagalog\b/i, 'Tagalog'],
+];
+
+const LANG_CODE: Record<string, string> = {
+  en: 'English', fr: 'French', es: 'Spanish', de: 'German',
+  it: 'Italian', pt: 'Portuguese', ru: 'Russian', ja: 'Japanese',
+  ko: 'Korean', zh: 'Chinese', hi: 'Hindi', ar: 'Arabic',
+  tr: 'Turkish', pl: 'Polish', nl: 'Dutch', sv: 'Swedish',
+  no: 'Norwegian', da: 'Danish', fi: 'Finnish', cs: 'Czech',
+  th: 'Thai', vi: 'Vietnamese', id: 'Indonesian', el: 'Greek',
+  he: 'Hebrew', ro: 'Romanian', hu: 'Hungarian', uk: 'Ukrainian',
+  te: 'Telugu', ta: 'Tamil', ur: 'Urdu', bn: 'Bengali',
+  ms: 'Malay', tl: 'Tagalog',
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+function first(text: string, map: [RegExp, string][]): string | null {
+  for (const [re, label] of map) { if (re.test(text)) return label; }
   return null;
 }
 
-function extractSize(title: string, streamSize?: number): string | null {
-  // Check emoji format first
-  const emojiMatch = title.match(SIZE_REGEX);
-  if (emojiMatch) return emojiMatch[1].trim();
-
-  // Check plain format
-  const plainMatch = title.match(SIZE_REGEX_PLAIN);
-  if (plainMatch) return `${plainMatch[1]} ${plainMatch[2].toUpperCase()}`;
-
-  // Fall back to stream.size field (bytes)
+function extractSize(text: string, streamSize?: number): string | null {
+  const m1 = text.match(/💾\s*([\d.]+\s*[KMGT]?B)/i);
+  if (m1) return m1[1].trim();
+  const m2 = text.match(/\b([\d.]+)\s*(GB|MB|TB|KB)\b/i);
+  if (m2) return `${m2[1]} ${m2[2].toUpperCase()}`;
   if (streamSize && streamSize > 0) {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let val = streamSize;
-    let idx = 0;
-    while (val >= 1024 && idx < units.length - 1) {
-      val /= 1024;
-      idx++;
-    }
+    let val = streamSize; let idx = 0;
+    while (val >= 1024 && idx < units.length - 1) { val /= 1024; idx++; }
     return `${val.toFixed(val >= 10 ? 1 : 2)} ${units[idx]}`;
   }
-
   return null;
+}
+
+function extractLanguage(text: string, langField?: string): string | null {
+  if (langField) {
+    const lc = langField.toLowerCase().trim();
+    if (LANG_CODE[lc]) return LANG_CODE[lc];
+    for (const [re, name] of LANGUAGE_MAP) { if (re.test(langField)) return name; }
+    if (lc.length > 0 && lc.length <= 20) return langField.charAt(0).toUpperCase() + langField.slice(1);
+  }
+  return first(text, LANGUAGE_MAP);
 }
 
 function extractReleaseGroup(title: string): string | null {
-  // Strip known tags and file extensions first
-  const cleaned = title
-    .replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm)$/i, '')
-    .replace(/\[.*?\]/g, '')
-    .trim();
-
-  // Look for -GROUP at end
-  const match = cleaned.match(/-([A-Za-z0-9]{2,15})$/);
-  if (match) return match[1];
-
-  return null;
+  const cleaned = title.replace(/\.(mkv|mp4|avi|mov|wmv|flv|webm)$/i, '').replace(/\[.*?\]/g, '').trim();
+  const m = cleaned.match(/-([A-Za-z0-9]{2,15})$/);
+  return m ? m[1] : null;
 }
 
 function cleanDisplayName(name: string, title: string): string {
-  // Use stream.name if it's a clean provider+quality format
   if (name) {
-    // Stremio addons typically put "AddonName\nQuality" in name
     const lines = name.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length >= 1) {
-      // If first line looks like a provider name (no dots, short), use it
-      if (lines[0].length < 40 && !lines[0].includes('.')) {
-        return lines[0];
-      }
-    }
+    if (lines.length >= 1 && lines[0].length < 50 && !lines[0].includes('.')) return lines[0];
   }
-
-  // Fall back to cleaning up the title
   const firstLine = (title || name || '').split('\n')[0].trim();
-
-  // Replace dots/underscores with spaces, clean up
-  let cleaned = firstLine
-    .replace(/\./g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  // Remove URL encoding
-  try {
-    cleaned = decodeURIComponent(cleaned);
-  } catch { /* ignore */ }
-
-  // Truncate if too long
-  if (cleaned.length > 60) {
-    cleaned = cleaned.substring(0, 57) + '...';
-  }
-
+  let cleaned = firstLine.replace(/\./g, ' ').replace(/_/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  try { cleaned = decodeURIComponent(cleaned); } catch { /* ok */ }
+  if (cleaned.length > 65) cleaned = cleaned.substring(0, 62) + '...';
   return cleaned || 'Unknown Stream';
 }
 
+// ── Colour helpers ──────────────────────────────────────────────────
+
+export function resolutionColor(res: string | null): string {
+  switch (res) {
+    case '4K': return '#F59E0B';
+    case '1080p': case '1080i': return '#3B82F6';
+    case '720p': return '#10B981';
+    default: return '#6B7280';
+  }
+}
+
+const AUDIO_PREMIUM = '#E879F9';
+const HDR_COL = '#D946EF';
+const CACHED_COL = '#22C55E';
+const EDITION_COL = '#F97316';
+const LANG_COL = '#06B6D4';
+const THREE_D_COL = '#EC4899';
+const HC_COL = '#EF4444';
+
+function premiumAudio(f: string | null): boolean {
+  return ['Atmos', 'TrueHD', 'DTS-HD MA', 'DTS:X', 'LPCM'].includes(f || '');
+}
+
+// ── Main ────────────────────────────────────────────────────────────
+
 export function parseStreamTitle(
-  streamName: string | undefined,
-  streamTitle: string | undefined,
-  streamSize?: number,
-  isCached?: boolean,
+  streamName?: string, streamTitle?: string,
+  streamSize?: number, isCached?: boolean, streamLang?: string,
 ): ParsedStreamInfo {
   const name = streamName || '';
   const title = streamTitle || '';
   const combined = `${name}\n${title}`;
 
-  return {
-    resolution: firstMatch(combined, RESOLUTION_MAP),
-    codec: firstMatch(combined, CODEC_MAP),
-    hdr: firstMatch(combined, HDR_MAP),
-    audio: firstMatch(combined, AUDIO_MAP),
-    source: firstMatch(combined, SOURCE_MAP),
-    size: extractSize(combined, streamSize),
-    releaseGroup: extractReleaseGroup(title.split('\n')[0]),
-    isCached: isCached ?? false,
-    displayName: cleanDisplayName(name, title),
-    provider: null, // filled by caller from addon context
-  };
-}
+  const resolution = first(combined, RESOLUTION);
+  const source = first(combined, SOURCE);
+  const hdr = first(combined, HDR);
+  const codec = first(combined, CODEC);
+  const audioFormat = first(combined, AUDIO_FORMAT);
+  const audioChannels = first(combined, AUDIO_CHANNELS);
+  const bitDepth = first(combined, BIT_DEPTH);
+  const size = extractSize(combined, streamSize);
+  const language = extractLanguage(combined, streamLang);
+  const cached = isCached ?? false;
+  const releaseGroup = extractReleaseGroup(title.split('\n')[0]);
+  const edition = first(combined, EDITION);
+  const proper = first(combined, PROPER);
+  const is3D = first(combined, THREE_D);
+  const isDualAudio = /\bdual[\s.-]?audio\b/i.test(combined);
+  const hasMultiSubs = /\bmulti[\s.-]?sub/i.test(combined);
+  const hasHardcodedSubs = /\b(?:hardcoded|hc)[\s.-]?sub/i.test(combined);
+  const container = first(combined, CONTAINER);
+  const displayName = cleanDisplayName(name, title);
 
-/**
- * Determines the accent colour for a resolution pill.
- */
-export function resolutionColor(res: string | null): string {
-  switch (res) {
-    case '4K': return '#F59E0B';
-    case '1080p': return '#3B82F6';
-    case '720p': return '#10B981';
-    case '480p': return '#8B5CF6';
-    default: return '#6B7280';
-  }
+  // ── PRIMARY pills ─────────────────────────────────────────────
+  const primary: Pill[] = [];
+  if (resolution) primary.push({ label: resolution, color: resolutionColor(resolution), tier: 'primary' });
+  if (source) primary.push({ label: source, color: source === 'REMUX' ? '#F59E0B' : undefined, tier: 'primary' });
+  if (hdr) primary.push({ label: hdr, color: HDR_COL, tier: 'primary' });
+  if (size) primary.push({ label: size, tier: 'primary' });
+  if (cached) primary.push({ label: 'CACHED', color: CACHED_COL, tier: 'primary' });
+  if (language && language !== 'English') primary.push({ label: language, color: LANG_COL, tier: 'primary' });
+
+  // ── SECONDARY pills ───────────────────────────────────────────
+  const secondary: Pill[] = [];
+  if (codec) secondary.push({ label: codec, tier: 'secondary' });
+  if (audioFormat) secondary.push({ label: audioFormat, color: premiumAudio(audioFormat) ? AUDIO_PREMIUM : undefined, tier: 'secondary' });
+  if (audioChannels) secondary.push({ label: audioChannels, tier: 'secondary' });
+  if (bitDepth) secondary.push({ label: bitDepth, tier: 'secondary' });
+  if (edition) secondary.push({ label: edition, color: EDITION_COL, tier: 'secondary' });
+  if (language === 'English') secondary.push({ label: 'English', color: LANG_COL, tier: 'secondary' });
+  if (isDualAudio) secondary.push({ label: 'Dual Audio', color: LANG_COL, tier: 'secondary' });
+  if (is3D) secondary.push({ label: is3D, color: THREE_D_COL, tier: 'secondary' });
+  if (proper) secondary.push({ label: proper, tier: 'secondary' });
+  if (hasMultiSubs) secondary.push({ label: 'Multi-Sub', tier: 'secondary' });
+  if (hasHardcodedSubs) secondary.push({ label: 'HC Subs', color: HC_COL, tier: 'secondary' });
+  if (releaseGroup) secondary.push({ label: releaseGroup, tier: 'secondary' });
+  if (container) secondary.push({ label: container, tier: 'secondary' });
+
+  return {
+    resolution, source, hdr, codec, audioFormat, audioChannels,
+    bitDepth, size, language, isCached: cached, releaseGroup,
+    edition, proper, is3D, isDualAudio, hasMultiSubs,
+    hasHardcodedSubs, container, displayName,
+    primaryPills: primary, secondaryPills: secondary,
+  };
 }
