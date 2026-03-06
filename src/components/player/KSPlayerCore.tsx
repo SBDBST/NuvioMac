@@ -589,85 +589,57 @@ const KSPlayerCore: React.FC = () => {
   // Show controls on mouse move, hide on idle
   const showControlsForMouse = useCallback(() => {
     if (!showControls) {
-      if (__DEV__) console.log('[KSPlayerCore:Desktop] Mouse move -> showing controls');
       toggleControls();
     }
     // Reset auto-hide whether controls were already visible or not
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     controlsTimeout.current = setTimeout(() => {
-      if (!paused) {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Mouse idle -> hiding controls');
-        hideControls();
-      }
+      if (!paused) hideControls();
     }, 3000);
   }, [showControls, toggleControls, hideControls, paused, controlsTimeout]);
 
   const playerKeyHandlers = useCallback(() => {
     if (!isMacCatalyst) return {};
     return {
-      playerToggle: () => {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Toggle playback');
-        controls.togglePlayback();
-      },
+      playerToggle: () => controls.togglePlayback(),
       playerSeekBack: () => {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Seek back 10s from', currentTime);
         controls.skip(-10);
         showControlsForMouse();
       },
       playerSeekForward: () => {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Seek forward 10s from', currentTime);
         controls.skip(10);
         showControlsForMouse();
       },
       playerVolumeUp: () => {
-        const newVol = Math.min(1.0, volume + 0.1);
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Volume up:', newVol.toFixed(1));
-        setVolumeState(newVol);
+        setVolumeState(v => Math.min(1.0, v + 0.1));
         showControlsForMouse();
       },
       playerVolumeDown: () => {
-        const newVol = Math.max(0, volume - 0.1);
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Volume down:', newVol.toFixed(1));
-        setVolumeState(newVol);
+        setVolumeState(v => Math.max(0, v - 0.1));
         showControlsForMouse();
       },
       playerMute: () => {
         if (volume > 0) {
           previousVolumeRef.current = volume;
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] Mute (was', volume, ')');
           setVolumeState(0);
         } else {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] Unmute to', previousVolumeRef.current);
           setVolumeState(previousVolumeRef.current);
         }
       },
-      playerFullscreen: () => {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Fullscreen toggled (native)');
+      playerShowControls: () => {
+        // ESC when not fullscreen -- just show controls
+        if (!showControls) toggleControls();
       },
-      playerClick: () => {
-        if (__DEV__) console.log('[KSPlayerCore:Desktop] Click -> toggle playback');
-        controls.togglePlayback();
-        showControlsForMouse();
-      },
-      playerMouseMove: () => {
-        showControlsForMouse();
-      },
+      playerMouseMove: () => showControlsForMouse(),
       playerMouseIdle: () => {
-        if (!paused && showControls) {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] Mouse idle timer -> hide');
-          hideControls();
-        }
+        if (!paused && showControls) hideControls();
       },
       playerMouseLeave: () => {
-        if (!paused && showControls) {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] Mouse left player area');
-          hideControls();
-        }
+        if (!paused && showControls) hideControls();
       },
-      escape: () => handleClose(),
       back: () => handleClose(),
     };
-  }, [controls, handleClose, volume, currentTime, paused, showControls, showControlsForMouse, hideControls]);
+  }, [controls, handleClose, volume, paused, showControls, showControlsForMouse, hideControls, toggleControls]);
 
   useKeyCommands(playerKeyHandlers());
 
@@ -931,18 +903,20 @@ const KSPlayerCore: React.FC = () => {
         />
       )}
 
-      {/* Desktop mouse + keyboard overlay (Catalyst only, renders nothing on mobile) */}
-      <DesktopPlayerOverlay
-        onMouseMove={() => {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] onMouseMove (native event)');
-        }}
-        onMouseClick={() => {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] onMouseClick (native event)');
-        }}
-        onMouseDoubleClick={() => {
-          if (__DEV__) console.log('[KSPlayerCore:Desktop] onMouseDoubleClick (native event)');
-        }}
-      />
+      {/* Desktop keyboard overlay (Catalyst only, renders nothing on mobile) */}
+      <DesktopPlayerOverlay />
+
+      {/* Desktop click-to-play area (below controls, no gesture delay) */}
+      {isMacCatalyst && isVideoLoaded && !showControls && (
+        <View
+          style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={() => {
+            controls.togglePlayback();
+            showControlsForMouse();
+          }}
+        />
+      )}
 
       {/* UI Controls */}
       {isVideoLoaded && (

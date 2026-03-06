@@ -1,10 +1,10 @@
 /**
- * DesktopPlayerOverlay - Native mouse + keyboard handling for the player on Catalyst.
+ * DesktopPlayerOverlay - Native keyboard handling for the player on Catalyst.
  *
- * This view sits on top of the player video area and captures:
- * - Arrow keys (seek), Space (play/pause), Escape (close), F (fullscreen), M (mute)
- * - Mouse movement (show controls), mouse idle (hide controls)
- * - Single click (toggle play/pause), double click (fullscreen)
+ * This view sits behind the controls and captures keyboard events via
+ * becomeFirstResponder. Mouse hover for show/hide controls is also handled
+ * natively. Click-to-play and double-click-to-fullscreen are handled in JS
+ * (no gesture recogniser delay).
  *
  * On mobile, renders nothing (zero overhead).
  */
@@ -13,9 +13,6 @@ import { View, requireNativeComponent, StyleSheet, ViewProps } from 'react-nativ
 import { isMacCatalyst } from '../../utils/platform';
 
 interface DesktopPlayerOverlayProps extends ViewProps {
-  onMouseMove?: () => void;
-  onMouseClick?: () => void;
-  onMouseDoubleClick?: () => void;
   children?: React.ReactNode;
 }
 
@@ -24,9 +21,6 @@ const NativeOverlay = isMacCatalyst
   : null;
 
 const DesktopPlayerOverlay: React.FC<DesktopPlayerOverlayProps> = ({
-  onMouseMove,
-  onMouseClick,
-  onMouseDoubleClick,
   children,
   style,
   ...rest
@@ -36,13 +30,10 @@ const DesktopPlayerOverlay: React.FC<DesktopPlayerOverlayProps> = ({
   }
 
   return (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 50 }]} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, { zIndex: 5 }]} pointerEvents="box-none">
       {children}
       <NativeOverlay
         style={StyleSheet.absoluteFill}
-        onMouseMove={onMouseMove}
-        onMouseClick={onMouseClick}
-        onMouseDoubleClick={onMouseDoubleClick}
         {...rest}
       />
     </View>

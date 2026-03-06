@@ -98,7 +98,6 @@ public class AppDelegate: ExpoAppDelegate {
       UIKeyCommand(title: "Search", action: #selector(UIResponder.handleCmdK), input: "k", modifierFlags: .command),
       UIKeyCommand(title: "Preferences...", action: #selector(UIResponder.handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(UIResponder.handleCmdBack), input: "[", modifierFlags: .command),
-      UIKeyCommand(title: "Close", action: #selector(UIResponder.handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: []),
     ]
     let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)

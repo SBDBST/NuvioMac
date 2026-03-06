@@ -3,6 +3,7 @@
 #import <React/RCTViewManager.h>
 
 @interface RCT_EXTERN_MODULE(PlatformInfo, RCTEventEmitter)
+RCT_EXTERN_METHOD(toggleFullscreen)
 @end
 
 @interface RCT_EXTERN_MODULE(HoverViewManager, RCTViewManager)
@@ -12,6 +13,4 @@ RCT_EXPORT_VIEW_PROPERTY(onHoverOut, RCTDirectEventBlock)
 
 @interface RCT_EXTERN_MODULE(DesktopPlayerOverlayManager, RCTViewManager)
 RCT_EXPORT_VIEW_PROPERTY(onMouseMove, RCTDirectEventBlock)
-RCT_EXPORT_VIEW_PROPERTY(onMouseClick, RCTDirectEventBlock)
-RCT_EXPORT_VIEW_PROPERTY(onMouseDoubleClick, RCTDirectEventBlock)
 @end

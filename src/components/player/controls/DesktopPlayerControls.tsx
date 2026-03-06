@@ -122,6 +122,15 @@ const DesktopPlayerControls: React.FC<DesktopPlayerControlsProps> = ({
           {/* Spacer for traffic light buttons */}
           <View style={{ width: TRAFFIC_LIGHT_WIDTH }} />
 
+          {/* Back / Close button */}
+          <TouchableOpacity
+            style={s.backBtn}
+            onPress={handleClose}
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.85)" />
+          </TouchableOpacity>
+
           <View style={s.titleArea}>
             <Text style={s.titleText} numberOfLines={1}>{title}</Text>
             {subtitleLine ? (
@@ -240,15 +249,12 @@ const DesktopPlayerControls: React.FC<DesktopPlayerControlsProps> = ({
               </TouchableOpacity>
             )}
 
-            {/* Fullscreen is handled by F key / double click, but show a button too */}
+            {/* Fullscreen button */}
             <TouchableOpacity
               style={s.iconBtn}
               onPress={() => {
-                // Emit fullscreen toggle via the native overlay
-                console.log('[DesktopPlayerControls] Fullscreen button pressed');
-                // The native overlay handles actual fullscreen via NSWindow
                 const { NativeModules } = require('react-native');
-                // Fallback: use Ctrl+Cmd+F system shortcut
+                NativeModules.PlatformInfo?.toggleFullscreen();
               }}
               accessibilityLabel="Toggle fullscreen"
             >
@@ -300,6 +306,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
+  },
+  backBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
   bottomBar: {
     position: 'absolute',

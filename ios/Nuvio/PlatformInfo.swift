@@ -57,6 +57,15 @@ class PlatformInfo: RCTEventEmitter {
     guard hasListeners else { return }
     sendEvent(withName: "onKeyCommand", body: ["id": commandId])
   }
+
+  /// Called from JS to toggle macOS native fullscreen
+  @objc func toggleFullscreen() {
+    #if targetEnvironment(macCatalyst)
+    DispatchQueue.main.async {
+      toggleMacFullscreen()
+    }
+    #endif
+  }
 }
 
 // MARK: - HoverView (native hover detection for content cards)
@@ -104,13 +113,35 @@ class HoverViewManager: RCTViewManager {
   }
 }
 
-// MARK: - DesktopPlayerOverlay (mouse + keyboard for player on Catalyst)
+// MARK: - Fullscreen helper (shared)
+
+#if targetEnvironment(macCatalyst)
+private func isMacFullscreen() -> Bool {
+  guard let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
+        let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject else { return false }
+  // NSWindow.styleMask contains .fullScreen (1 << 14 = 16384) when in fullscreen
+  let mask = (nsWindow.value(forKey: "styleMask") as? UInt) ?? 0
+  return (mask & (1 << 14)) != 0
+}
+
+private func toggleMacFullscreen() {
+  if let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
+     let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject {
+    nsWindow.perform(NSSelectorFromString("toggleFullScreen:"), with: nil)
+    nuvioLog("[DesktopPlayerOverlay] toggleFullScreen called")
+  } else {
+    NSLog("[DesktopPlayerOverlay] Could not get NSWindow for fullscreen")
+  }
+}
+#endif
+
+// MARK: - DesktopPlayerOverlay (keyboard + mouse hover for player on Catalyst)
+// Click-to-play and double-click-to-fullscreen are handled on the JS side
+// to avoid gesture recogniser conflicts and the 300ms single-click delay.
 
 #if targetEnvironment(macCatalyst)
 class DesktopPlayerOverlayView: UIView {
   @objc var onMouseMove: RCTDirectEventBlock?
-  @objc var onMouseClick: RCTDirectEventBlock?
-  @objc var onMouseDoubleClick: RCTDirectEventBlock?
 
   private var mouseIdleTimer: Timer?
 
@@ -119,20 +150,11 @@ class DesktopPlayerOverlayView: UIView {
     backgroundColor = .clear
     isUserInteractionEnabled = true
 
+    // Hover only -- no click/double-click gestures (handled in JS)
     let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:)))
     addGestureRecognizer(hover)
 
-    let singleClick = UITapGestureRecognizer(target: self, action: #selector(handleClick(_:)))
-    singleClick.numberOfTapsRequired = 1
-    addGestureRecognizer(singleClick)
-
-    let doubleClick = UITapGestureRecognizer(target: self, action: #selector(handleDoubleClick(_:)))
-    doubleClick.numberOfTapsRequired = 2
-    addGestureRecognizer(doubleClick)
-
-    singleClick.require(toFail: doubleClick)
-
-    nuvioLog("[DesktopPlayerOverlay] Initialized with hover + click gestures")
+    nuvioLog("[DesktopPlayerOverlay] Initialized with hover gesture")
   }
 
   required init?(coder: NSCoder) {
@@ -140,6 +162,12 @@ class DesktopPlayerOverlayView: UIView {
   }
 
   override var canBecomeFirstResponder: Bool { true }
+
+  // Allow touches to pass through to views underneath (controls, buttons)
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    // Only claim hits for hover -- return nil so taps fall through
+    return nil
+  }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
@@ -190,13 +218,18 @@ class DesktopPlayerOverlayView: UIView {
     PlatformInfo.shared?.emitKeyCommand("playerToggle")
   }
   @objc private func escapeKey() {
-    nuvioLog("[DesktopPlayerOverlay] ESC -> close")
-    PlatformInfo.shared?.emitKeyCommand("escape")
+    // ESC only exits fullscreen. If not fullscreen, show controls instead.
+    if isMacFullscreen() {
+      nuvioLog("[DesktopPlayerOverlay] ESC -> exit fullscreen")
+      toggleMacFullscreen()
+    } else {
+      nuvioLog("[DesktopPlayerOverlay] ESC -> show controls")
+      PlatformInfo.shared?.emitKeyCommand("playerShowControls")
+    }
   }
   @objc private func fKey() {
     nuvioLog("[DesktopPlayerOverlay] F -> fullscreen")
     toggleMacFullscreen()
-    PlatformInfo.shared?.emitKeyCommand("playerFullscreen")
   }
   @objc private func mKey() {
     nuvioLog("[DesktopPlayerOverlay] M -> mute")
@@ -215,37 +248,12 @@ class DesktopPlayerOverlayView: UIView {
   @objc private func handleMouseMove(_ recognizer: UIHoverGestureRecognizer) {
     switch recognizer.state {
     case .began, .changed:
-      onMouseMove?([:])
       PlatformInfo.shared?.emitKeyCommand("playerMouseMove")
       resetMouseIdleTimer()
     case .ended, .cancelled:
       PlatformInfo.shared?.emitKeyCommand("playerMouseLeave")
     default:
       break
-    }
-  }
-
-  @objc private func handleClick(_ recognizer: UITapGestureRecognizer) {
-    nuvioLog("[DesktopPlayerOverlay] Click -> playerClick")
-    onMouseClick?([:])
-    PlatformInfo.shared?.emitKeyCommand("playerClick")
-  }
-
-  @objc private func handleDoubleClick(_ recognizer: UITapGestureRecognizer) {
-    nuvioLog("[DesktopPlayerOverlay] DoubleClick -> fullscreen")
-    onMouseDoubleClick?([:])
-    toggleMacFullscreen()
-    PlatformInfo.shared?.emitKeyCommand("playerFullscreen")
-  }
-
-  private func toggleMacFullscreen() {
-    // Use NSWindow toggleFullScreen via NSApplication
-    if let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
-       let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject {
-      nsWindow.perform(NSSelectorFromString("toggleFullScreen:"), with: nil)
-      nuvioLog("[DesktopPlayerOverlay] toggleFullScreen called")
-    } else {
-      NSLog("[DesktopPlayerOverlay] Could not get NSWindow for fullscreen")
     }
   }
 
