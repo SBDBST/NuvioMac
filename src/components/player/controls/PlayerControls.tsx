@@ -632,9 +632,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => setShowAudioModal(true)}
-                disabled={ksAudioTracks.length <= 1}
+                disabled={ksAudioTracks.length < 1}
               >
-                {ksAudioTracks.length <= 1 ? (
+                {ksAudioTracks.length < 1 ? (
                   <PlayerAudioOutlineIcon width={24} height={24} opacity={0.55} />
                 ) : (
                   <PlayerAudioFilledIcon width={24} height={24} />

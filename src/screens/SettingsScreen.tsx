@@ -11,7 +11,6 @@ import {
   StatusBar,
   Platform,
   Dimensions,
-  Linking,
   FlatList,
 } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
@@ -381,8 +380,8 @@ const SettingsScreen: React.FC = () => {
           <SettingsCard title={t('settings.sections.account')} isTablet={isTablet}>
             {showCloudSyncItem && (
               <SettingItem
-                title="Nuvio Sync"
-                description="Sync data across your Nuvio devices"
+                title={t('settings.cloud_sync.title')}
+                description={t('settings.cloud_sync.description')}
                 customIcon={
                   <FastImage
                     source={require('../../assets/nuvio-sync-icon-og.png')}
@@ -544,7 +543,7 @@ const SettingsScreen: React.FC = () => {
           <SettingsCard title={t('settings.backup_restore').toUpperCase()} isTablet={isTablet}>
             <SettingItem
               title={t('settings.backup_restore')}
-              description="Create and restore app backups"
+              description={t('settings.backup_restore_desc')}
               icon="archive"
               renderControl={() => <ChevronRight />}
               onPress={() => navigation.navigate('Backup')}
@@ -914,41 +913,6 @@ const SettingsScreen: React.FC = () => {
                 />
               </TouchableOpacity>
 
-              <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <TouchableOpacity
-                  style={[styles.discordButton, { backgroundColor: currentTheme.colors.elevation1 }]}
-                  onPress={() => Linking.openURL('https://discord.gg/KVgDTjhA4H')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.discordButtonContent}>
-                    <FastImage
-                      source={{ uri: 'https://pngimg.com/uploads/discord/discord_PNG3.png' }}
-                      style={styles.discordLogo}
-                      resizeMode={FastImage.resizeMode.contain}
-                    />
-                    <Text style={[styles.discordButtonText, { color: currentTheme.colors.highEmphasis }]}>
-                      Discord
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.discordButton, { backgroundColor: '#FF4500' + '15' }]}
-                  onPress={() => Linking.openURL('https://www.reddit.com/r/Nuvio/')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.discordButtonContent}>
-                    <FastImage
-                      source={{ uri: 'https://www.iconpacks.net/icons/2/free-reddit-logo-icon-2436-thumb.png' }}
-                      style={styles.discordLogo}
-                      resizeMode={FastImage.resizeMode.contain}
-                    />
-                    <Text style={[styles.discordButtonText, { color: '#FF4500' }]}>
-                      Reddit
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
             </View>
 
             {/* Monkey Animation */}
@@ -1188,19 +1152,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 10,
     maxWidth: 200,
-  },
-  discordButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  discordLogo: {
-    width: 18,
-    height: 18,
-    marginRight: 10,
-  },
-  discordButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   kofiImage: {
     height: 34,
