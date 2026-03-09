@@ -58,7 +58,7 @@ interface DesktopPlayerControlsProps {
   buffered: number;
 }
 
-const TRAFFIC_LIGHT_WIDTH = 78; // macOS traffic light buttons width + padding
+const TRAFFIC_LIGHT_WIDTH = 90; // macOS traffic light buttons width + generous padding
 
 const DesktopPlayerControls: React.FC<DesktopPlayerControlsProps> = ({
   showControls,

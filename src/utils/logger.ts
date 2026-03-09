@@ -129,6 +129,18 @@ const NATIVE_NOISE_PATTERNS: string[] = [
   'warning KSPlayer: AVFFmpegExtension',      // audio layout tag
   'warning KSPlayer: Resample.swift',         // audio format
   'warning KSPlayer: AudioEnginePlayer',      // audio engine prep
+  'AQMEIO_HAL',                               // CoreAudio headset info spam
+  'AudioConverter.cpp',                       // CoreAudio converter errors
+  'HALC_ProxyIOContext',                      // CoreAudio IO overload
+  'Failed to load item AXCodeItem',           // Accessibility framework loading
+  'KSPlayerView: ESC pressed',               // KSPlayer's own ESC handler (ours debounces)
+  'KSPlayerView: [SUBTITLE',                 // subtitle debug spam
+  'KSPlayerView: [VIDEO GRAVITY',            // video gravity changes
+  'KSPlayerView: [SET TEXT TRACK',            // text track config
+  'KSPlayerView: [READY TO PLAY',            // ready state repeats
+  'KSPlayerView: [DELEGATE CALLED',          // delegate callback noise
+  'KSPlayerView: [PERF',                     // perf metrics
+  'KSPlayerView: [PROP SETTER',              // prop setter debug
 ];
 
 function isQuiet(args: any[]): boolean {

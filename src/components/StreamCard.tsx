@@ -291,10 +291,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   streamCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: isMacCatalyst ? 16 : 14,
+    padding: isMacCatalyst ? 18 : 14,
     borderRadius: 14,
-    marginBottom: isMacCatalyst ? 10 : 8,
-    minHeight: isMacCatalyst ? 68 : 60,
+    marginBottom: isMacCatalyst ? 12 : 8,
+    minHeight: isMacCatalyst ? 76 : 60,
     backgroundColor: isMacCatalyst ? 'rgba(255,255,255,0.06)' : colors.card,
     borderWidth: isMacCatalyst ? 1 : 0,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -323,7 +323,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   streamDetails: {
     flex: 1,
-    gap: isMacCatalyst ? 8 : 6,
+    gap: isMacCatalyst ? 9 : 6,
   },
   nameRow: {
     flexDirection: 'row',
@@ -332,9 +332,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   streamName: {
-    fontSize: isMacCatalyst ? 15 : 13,
+    fontSize: isMacCatalyst ? 16.5 : 13,
     fontWeight: '600',
-    lineHeight: isMacCatalyst ? 20 : 18,
+    lineHeight: isMacCatalyst ? 22 : 18,
     color: colors.highEmphasis,
     flex: 1,
   },
@@ -345,13 +345,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   pill: {
-    paddingHorizontal: isMacCatalyst ? 10 : 8,
-    paddingVertical: isMacCatalyst ? 4 : 3,
+    paddingHorizontal: isMacCatalyst ? 11 : 8,
+    paddingVertical: isMacCatalyst ? 5 : 3,
     borderRadius: 8,
     borderWidth: 1,
   },
   pillText: {
-    fontSize: isMacCatalyst ? 11 : 10,
+    fontSize: isMacCatalyst ? 11.5 : 10,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',

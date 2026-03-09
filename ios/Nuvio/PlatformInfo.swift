@@ -144,6 +144,8 @@ class DesktopPlayerOverlayView: UIView {
   @objc var onMouseMove: RCTDirectEventBlock?
 
   private var mouseIdleTimer: Timer?
+  private var firstResponderRetryCount = 0
+  private static let maxRetries = 8
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -153,6 +155,14 @@ class DesktopPlayerOverlayView: UIView {
     // Hover only -- no click/double-click gestures (handled in JS)
     let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:)))
     addGestureRecognizer(hover)
+
+    // Listen for window becoming key to reclaim first responder
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(windowDidBecomeKey),
+      name: UIWindow.didBecomeKeyNotification,
+      object: nil
+    )
 
     nuvioLog("[DesktopPlayerOverlay] Initialized with hover gesture")
   }
@@ -172,10 +182,43 @@ class DesktopPlayerOverlayView: UIView {
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window != nil {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-        self?.becomeFirstResponder()
-        NSLog("[DesktopPlayerOverlay] becomeFirstResponder: \(self?.isFirstResponder ?? false)")
+      firstResponderRetryCount = 0
+      attemptBecomeFirstResponder()
+    }
+  }
+
+  /// Retry becoming first responder with increasing delays.
+  /// KSPlayer's native view often steals focus during setup, so we need
+  /// to keep trying until after it's settled.
+  private func attemptBecomeFirstResponder() {
+    guard firstResponderRetryCount < Self.maxRetries else {
+      NSLog("[DesktopPlayerOverlay] Gave up after \(Self.maxRetries) retries, isFirstResponder: \(isFirstResponder)")
+      return
+    }
+
+    let delay = 0.3 + Double(firstResponderRetryCount) * 0.5
+    firstResponderRetryCount += 1
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      guard let self = self, self.window != nil else { return }
+      if !self.isFirstResponder {
+        let result = self.becomeFirstResponder()
+        NSLog("[DesktopPlayerOverlay] becomeFirstResponder attempt \(self.firstResponderRetryCount): \(result)")
+        if !result {
+          self.attemptBecomeFirstResponder()
+        }
       }
+    }
+  }
+
+  @objc private func windowDidBecomeKey(_ note: Notification) {
+    // When our window regains key status (e.g. after fullscreen transition),
+    // reclaim first responder if we lost it
+    guard window != nil, !isFirstResponder else { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      guard let self = self, self.window != nil, !self.isFirstResponder else { return }
+      let result = self.becomeFirstResponder()
+      nuvioLog("[DesktopPlayerOverlay] windowDidBecomeKey reclaim: \(result)")
     }
   }
 
@@ -282,6 +325,7 @@ class DesktopPlayerOverlayView: UIView {
 
   deinit {
     mouseIdleTimer?.invalidate()
+    NotificationCenter.default.removeObserver(self)
     nuvioLog("[DesktopPlayerOverlay] Deinit")
   }
 }

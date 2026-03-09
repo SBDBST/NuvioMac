@@ -906,10 +906,13 @@ const KSPlayerCore: React.FC = () => {
       {/* Desktop keyboard overlay (Catalyst only, renders nothing on mobile) */}
       <DesktopPlayerOverlay />
 
-      {/* Desktop click-to-play area (below controls, no gesture delay) */}
-      {isMacCatalyst && isVideoLoaded && !showControls && (
+      {/* Desktop click-to-play area -- always present when video loaded.
+          zIndex 6: above video surface, below controls (zIndex 20).
+          Controls use pointerEvents="box-none" so clicks on empty space
+          fall through to this layer for instant play/pause. */}
+      {isMacCatalyst && isVideoLoaded && (
         <View
-          style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+          style={[StyleSheet.absoluteFill, { zIndex: 6 }]}
           onStartShouldSetResponder={() => true}
           onResponderRelease={() => {
             controls.togglePlayback();
