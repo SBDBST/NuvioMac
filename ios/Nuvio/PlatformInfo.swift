@@ -144,8 +144,7 @@ class DesktopPlayerOverlayView: UIView {
   @objc var onMouseMove: RCTDirectEventBlock?
 
   private var mouseIdleTimer: Timer?
-  private var firstResponderRetryCount = 0
-  private static let maxRetries = 8
+  private var firstResponderMonitor: Timer?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -155,14 +154,6 @@ class DesktopPlayerOverlayView: UIView {
     // Hover only -- no click/double-click gestures (handled in JS)
     let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:)))
     addGestureRecognizer(hover)
-
-    // Listen for window becoming key to reclaim first responder
-    NotificationCenter.default.addObserver(
-      self,
-      selector: #selector(windowDidBecomeKey),
-      name: UIWindow.didBecomeKeyNotification,
-      object: nil
-    )
 
     nuvioLog("[DesktopPlayerOverlay] Initialized with hover gesture")
   }
@@ -175,51 +166,47 @@ class DesktopPlayerOverlayView: UIView {
 
   // Allow touches to pass through to views underneath (controls, buttons)
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    // Only claim hits for hover -- return nil so taps fall through
     return nil
   }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window != nil {
-      firstResponderRetryCount = 0
-      attemptBecomeFirstResponder()
+      startFirstResponderMonitor()
+    } else {
+      stopFirstResponderMonitor()
     }
   }
 
-  /// Retry becoming first responder with increasing delays.
-  /// KSPlayer's native view often steals focus during setup, so we need
-  /// to keep trying until after it's settled.
-  private func attemptBecomeFirstResponder() {
-    guard firstResponderRetryCount < Self.maxRetries else {
-      NSLog("[DesktopPlayerOverlay] Gave up after \(Self.maxRetries) retries, isFirstResponder: \(isFirstResponder)")
-      return
+  /// Persistent timer that monitors first responder status and reclaims it
+  /// whenever KSPlayer or another view steals it. KSPlayer steals focus
+  /// when playback starts (~5s after open), so a one-shot retry isn't enough.
+  private func startFirstResponderMonitor() {
+    stopFirstResponderMonitor()
+
+    // Initial quick claim
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+      self?.claimFirstResponder(label: "initial")
     }
 
-    let delay = 0.3 + Double(firstResponderRetryCount) * 0.5
-    firstResponderRetryCount += 1
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+    // Then monitor every 1.5s for the lifetime of the view
+    firstResponderMonitor = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
       guard let self = self, self.window != nil else { return }
       if !self.isFirstResponder {
-        let result = self.becomeFirstResponder()
-        NSLog("[DesktopPlayerOverlay] becomeFirstResponder attempt \(self.firstResponderRetryCount): \(result)")
-        if !result {
-          self.attemptBecomeFirstResponder()
-        }
+        self.claimFirstResponder(label: "monitor")
       }
     }
   }
 
-  @objc private func windowDidBecomeKey(_ note: Notification) {
-    // When our window regains key status (e.g. after fullscreen transition),
-    // reclaim first responder if we lost it
+  private func stopFirstResponderMonitor() {
+    firstResponderMonitor?.invalidate()
+    firstResponderMonitor = nil
+  }
+
+  private func claimFirstResponder(label: String) {
     guard window != nil, !isFirstResponder else { return }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-      guard let self = self, self.window != nil, !self.isFirstResponder else { return }
-      let result = self.becomeFirstResponder()
-      nuvioLog("[DesktopPlayerOverlay] windowDidBecomeKey reclaim: \(result)")
-    }
+    let result = becomeFirstResponder()
+    NSLog("[DesktopPlayerOverlay] \(label) becomeFirstResponder: \(result)")
   }
 
   // Override keyCommands to intercept keys BEFORE the UIKit focus system
@@ -273,13 +260,13 @@ class DesktopPlayerOverlayView: UIView {
     let now = CACurrentMediaTime()
     guard now - lastEscTime > Self.keyCooldown else { return }
     lastEscTime = now
-    // ESC only exits fullscreen. If not fullscreen, show controls instead.
     if isMacFullscreen() {
       nuvioLog("[DesktopPlayerOverlay] ESC -> exit fullscreen")
       toggleMacFullscreen()
     } else {
-      nuvioLog("[DesktopPlayerOverlay] ESC -> show controls")
-      PlatformInfo.shared?.emitKeyCommand("playerShowControls")
+      // Not fullscreen: close the player (same as back button)
+      nuvioLog("[DesktopPlayerOverlay] ESC -> close player")
+      PlatformInfo.shared?.emitKeyCommand("escape")
     }
   }
   @objc private func fKey() {
@@ -325,7 +312,7 @@ class DesktopPlayerOverlayView: UIView {
 
   deinit {
     mouseIdleTimer?.invalidate()
-    NotificationCenter.default.removeObserver(self)
+    stopFirstResponderMonitor()
     nuvioLog("[DesktopPlayerOverlay] Deinit")
   }
 }

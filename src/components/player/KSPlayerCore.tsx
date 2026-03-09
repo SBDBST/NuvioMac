@@ -576,18 +576,31 @@ const KSPlayerCore: React.FC = () => {
     isSyncingBeforeClose.current = true;
 
     // Fire and forget - don't block navigation on async operations
-    // The useWatchProgress and useTraktAutosync hooks handle cleanup on unmount
     traktAutosync.handleProgressUpdate(currentTime, duration, true);
     traktAutosync.handlePlaybackEnd(currentTime, duration, 'user_close');
 
     navigation.goBack();
+
+    // Reset guard after 2s in case navigation.goBack() didn't actually
+    // dismiss the player (Catalyst modal presentation quirk). Without
+    // this, the back button becomes permanently unresponsive.
+    setTimeout(() => {
+      isSyncingBeforeClose.current = false;
+    }, 2000);
   }, [navigation, currentTime, duration, traktAutosync]);
 
   // ─── Desktop controls (Catalyst only) ────────────────────────────
   const previousVolumeRef = useRef(1.0);
+  const lastMouseShowRef = useRef(0);
 
-  // Show controls on mouse move, hide on idle
+  // Show controls on mouse move, hide on idle.
+  // Throttled to max once per 200ms to avoid excessive re-renders from
+  // continuous onPointerMove events (60fps mouse tracking).
   const showControlsForMouse = useCallback(() => {
+    const now = Date.now();
+    if (now - lastMouseShowRef.current < 200) return;
+    lastMouseShowRef.current = now;
+
     if (!showControls) {
       toggleControls();
     }
@@ -627,8 +640,8 @@ const KSPlayerCore: React.FC = () => {
         }
       },
       playerShowControls: () => {
-        // ESC when not fullscreen -- just show controls
-        if (!showControls) toggleControls();
+        // ESC when not fullscreen -- show controls then auto-hide
+        showControlsForMouse();
       },
       playerMouseMove: () => showControlsForMouse(),
       playerMouseIdle: () => {
@@ -637,6 +650,8 @@ const KSPlayerCore: React.FC = () => {
       playerMouseLeave: () => {
         if (!paused && showControls) hideControls();
       },
+      // Menu-level ESC and back both close the player
+      escape: () => handleClose(),
       back: () => handleClose(),
     };
   }, [controls, handleClose, volume, paused, showControls, showControlsForMouse, hideControls, toggleControls]);
@@ -909,7 +924,9 @@ const KSPlayerCore: React.FC = () => {
       {/* Desktop click-to-play area -- always present when video loaded.
           zIndex 6: above video surface, below controls (zIndex 20).
           Controls use pointerEvents="box-none" so clicks on empty space
-          fall through to this layer for instant play/pause. */}
+          fall through to this layer for instant play/pause.
+          Also handles mouse hover to show/hide controls since this is
+          the topmost interactive layer on the player surface. */}
       {isMacCatalyst && isVideoLoaded && (
         <View
           style={[StyleSheet.absoluteFill, { zIndex: 6 }]}
@@ -918,6 +935,8 @@ const KSPlayerCore: React.FC = () => {
             controls.togglePlayback();
             showControlsForMouse();
           }}
+          // @ts-ignore -- Pointer Events available on Fabric (RN 0.71+)
+          onPointerMove={() => showControlsForMouse()}
         />
       )}
 

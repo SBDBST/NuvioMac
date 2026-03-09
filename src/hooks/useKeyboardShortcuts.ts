@@ -26,7 +26,7 @@ type CommandId =
   | 'search' | 'settings' | 'back' | 'escape'
   | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5'
   | 'playerToggle' | 'playerSeekBack' | 'playerSeekForward'
-  | 'playerMute' | 'playerFullscreen'
+  | 'playerMute' | 'playerFullscreen' | 'playerShowControls'
   | 'playerVolumeUp' | 'playerVolumeDown'
   | 'playerClick' | 'playerMouseMove' | 'playerMouseIdle' | 'playerMouseLeave';
 

@@ -99,7 +99,11 @@ public class AppDelegate: ExpoAppDelegate {
       UIKeyCommand(title: "Preferences...", action: #selector(UIResponder.handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(UIResponder.handleCmdBack), input: "[", modifierFlags: .command),
     ]
-    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
+    // ESC without modifiers -- fires globally, handled by the player to close
+    // or by other screens to go back. Hidden so it doesn't appear in menu bar.
+    let escCmd = UIKeyCommand(title: "", action: #selector(UIResponder.handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: [])
+    escCmd.discoverabilityTitle = nil
+    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren + [escCmd])
     builder.insertSibling(navMenu, afterMenu: .view)
 
     // Tab switching -- order matches the tab bar: Home, Library, Search, Downloads, Settings
