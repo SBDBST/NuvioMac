@@ -34,41 +34,48 @@ const SourceStreamItem: React.FC<{
   );
   const hasSec = parsed.secondaryPills.length > 0;
 
-  const pillStyle = (pill: Pill) => ({
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1,
+  const pillStyle = (pill: Pill, tier: 'primary' | 'secondary') => ({
+    paddingHorizontal: isMacCatalyst ? 9 : 7,
+    paddingVertical: isMacCatalyst ? 3.5 : 2.5,
+    borderRadius: 7,
+    borderWidth: 1,
     backgroundColor: isSelected
-      ? (pill.color ? pill.color + '25' : 'rgba(0,0,0,0.08)')
-      : (pill.color ? pill.color + '20' : 'rgba(255,255,255,0.08)'),
+      ? (pill.color ? pill.color + (tier === 'primary' ? '30' : '25') : 'rgba(0,0,0,0.10)')
+      : (pill.color ? pill.color + (tier === 'primary' ? '30' : '22') : 'rgba(255,255,255,0.08)'),
     borderColor: isSelected
-      ? (pill.color ? pill.color + '50' : 'rgba(0,0,0,0.12)')
-      : (pill.color ? pill.color + '35' : 'transparent'),
+      ? (pill.color ? pill.color + '55' : 'rgba(0,0,0,0.15)')
+      : (pill.color ? pill.color + (tier === 'primary' ? '55' : '45') : 'rgba(255,255,255,0.12)'),
   });
 
   const pillTextStyle = (pill: Pill) => ({
-    fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.3,
+    fontSize: isMacCatalyst ? 10.5 : 9.5,
+    fontWeight: '700' as const,
+    letterSpacing: 0.3,
     textTransform: 'uppercase' as const,
-    color: isSelected ? (pill.color || 'rgba(0,0,0,0.6)') : (pill.color || 'rgba(255,255,255,0.5)'),
+    color: isSelected ? (pill.color || 'rgba(0,0,0,0.65)') : (pill.color || 'rgba(255,255,255,0.55)'),
   });
 
   return (
     <TouchableOpacity
       style={{
-        padding: isMacCatalyst ? 12 : 10, borderRadius: 12,
+        padding: isMacCatalyst ? 14 : 10,
+        borderRadius: 12,
         backgroundColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
-        borderWidth: 1, borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: isSelected ? 'white' : 'rgba(255,255,255,0.07)',
         opacity: (isChangingSource && !isSelected) ? 0.5 : 1,
       }}
       onPress={onPress} activeOpacity={0.7} disabled={isChangingSource}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text style={{ color: isSelected ? '#000' : '#fff', fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
+        <View style={{ flex: 1, gap: isMacCatalyst ? 8 : 6 }}>
+          <Text style={{ color: isSelected ? '#000' : '#fff', fontWeight: '600', fontSize: isMacCatalyst ? 14 : 13 }} numberOfLines={1}>
             {parsed.displayName}
           </Text>
           {(parsed.primaryPills.length > 0 || hasSec) && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: isMacCatalyst ? 6 : 5, alignItems: 'center' }}>
               {parsed.primaryPills.map((pill, i) => (
-                <View key={`p-${pill.label}-${i}`} style={pillStyle(pill)}>
+                <View key={`p-${pill.label}-${i}`} style={pillStyle(pill, 'primary')}>
                   <Text style={pillTextStyle(pill)}>{pill.label}</Text>
                 </View>
               ))}
@@ -76,7 +83,7 @@ const SourceStreamItem: React.FC<{
                 <TouchableOpacity
                   onPress={() => setExpanded(prev => !prev)}
                   style={{
-                    width: 20, height: 20, borderRadius: 5, justifyContent: 'center', alignItems: 'center',
+                    width: 24, height: 24, borderRadius: 6, justifyContent: 'center', alignItems: 'center',
                     backgroundColor: isSelected ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
                   }}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -84,16 +91,16 @@ const SourceStreamItem: React.FC<{
                 >
                   <MaterialIcons
                     name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-                    size={14} color={isSelected ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.4)'}
+                    size={16} color={isSelected ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)'}
                   />
                 </TouchableOpacity>
               )}
             </View>
           )}
           {expanded && hasSec && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: isMacCatalyst ? 6 : 5 }}>
               {parsed.secondaryPills.map((pill, i) => (
-                <View key={`s-${pill.label}-${i}`} style={pillStyle(pill)}>
+                <View key={`s-${pill.label}-${i}`} style={pillStyle(pill, 'secondary')}>
                   <Text style={pillTextStyle(pill)}>{pill.label}</Text>
                 </View>
               ))}
@@ -222,7 +229,7 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
                   {providerData.addonName} ({providerData.streams.length})
                 </Text>
 
-                <View style={{ gap: 8 }}>
+                <View style={{ gap: isMacCatalyst ? 10 : 8 }}>
                   {providerData.streams.map((stream, index) => (
                     <SourceStreamItem
                       key={`${providerId}-${index}`}

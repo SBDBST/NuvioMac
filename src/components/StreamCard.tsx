@@ -222,8 +222,8 @@ const StreamCard = memo(({
                 style={[
                   styles.pill,
                   pill.color
-                    ? { backgroundColor: pill.color + '20', borderColor: pill.color + '40' }
-                    : { backgroundColor: theme.colors.elevation2, borderColor: 'transparent' },
+                    ? { backgroundColor: pill.color + '30', borderColor: pill.color + '60' }
+                    : { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)' },
                 ]}
               >
                 <Text style={[styles.pillText, { color: pill.color || theme.colors.mediumEmphasis }]}>
@@ -233,14 +233,14 @@ const StreamCard = memo(({
             ))}
             {hasSecondary && (
               <TouchableOpacity
-                style={[styles.expandBtn, { backgroundColor: theme.colors.elevation2 }]}
+                style={[styles.expandBtn, { backgroundColor: 'rgba(255,255,255,0.08)' }]}
                 onPress={() => setExpanded(prev => !prev)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 activeOpacity={0.6}
               >
                 <MaterialIcons
                   name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-                  size={14}
+                  size={16}
                   color={theme.colors.mediumEmphasis}
                 />
               </TouchableOpacity>
@@ -257,8 +257,8 @@ const StreamCard = memo(({
                 style={[
                   styles.pill,
                   pill.color
-                    ? { backgroundColor: pill.color + '18', borderColor: pill.color + '35' }
-                    : { backgroundColor: theme.colors.elevation2, borderColor: 'transparent' },
+                    ? { backgroundColor: pill.color + '25', borderColor: pill.color + '50' }
+                    : { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)' },
                 ]}
               >
                 <Text style={[styles.pillText, { color: pill.color || theme.colors.mediumEmphasis }]}>
@@ -293,9 +293,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     padding: isMacCatalyst ? 16 : 14,
     borderRadius: 14,
-    marginBottom: isMacCatalyst ? 12 : 10,
-    minHeight: 60,
-    backgroundColor: colors.card,
+    marginBottom: isMacCatalyst ? 10 : 8,
+    minHeight: isMacCatalyst ? 68 : 60,
+    backgroundColor: isMacCatalyst ? 'rgba(255,255,255,0.06)' : colors.card,
+    borderWidth: isMacCatalyst ? 1 : 0,
+    borderColor: 'rgba(255,255,255,0.06)',
     width: '100%',
     zIndex: 1,
   },
@@ -316,11 +318,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     opacity: 0.6,
   },
   streamCardHighlighted: {
-    backgroundColor: colors.elevation2,
+    backgroundColor: isMacCatalyst ? 'rgba(255,255,255,0.09)' : colors.elevation2,
+    borderColor: isMacCatalyst ? 'rgba(255,255,255,0.10)' : 'transparent',
   },
   streamDetails: {
     flex: 1,
-    gap: 6,
+    gap: isMacCatalyst ? 8 : 6,
   },
   nameRow: {
     flexDirection: 'row',
@@ -329,33 +332,34 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   streamName: {
-    fontSize: isMacCatalyst ? 14 : 13,
+    fontSize: isMacCatalyst ? 15 : 13,
     fontWeight: '600',
-    lineHeight: 18,
+    lineHeight: isMacCatalyst ? 20 : 18,
     color: colors.highEmphasis,
     flex: 1,
   },
   pillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: isMacCatalyst ? 6 : 5,
+    gap: isMacCatalyst ? 7 : 5,
+    alignItems: 'center',
   },
   pill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: isMacCatalyst ? 10 : 8,
+    paddingVertical: isMacCatalyst ? 4 : 3,
+    borderRadius: 8,
     borderWidth: 1,
   },
   pillText: {
-    fontSize: 10,
+    fontSize: isMacCatalyst ? 11 : 10,
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   expandBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
     justifyContent: 'center',
     alignItems: 'center',
   },

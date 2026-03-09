@@ -83,8 +83,15 @@ const QUIET_PREFIXES: string[] = [
   "'[LocalScraperService",
   // Player
   '[KSPlayerCore:Desktop]',
+  '[KSPlayerCore',
+  "'[KSPlayerCore",
+  'KSPlayerView:',
+  '[KSPlayerSurface',
+  "'[KSPlayerSurface",
+  '[DesktopPlayerOverlay',
   '[ParentalGuideOverlay',
   "'[ParentalGuideOverlay",
+  'warning KSPlayer:',
   // Misc
   'Lottie animation',
   'Loading custom catalog',
@@ -111,6 +118,17 @@ const NATIVE_NOISE_PATTERNS: string[] = [
   'AX Safe category class',                   // Accessibility framework
   'void * _Nullable NSMapGet',                // UIKit internal
   'Each child in a list should have a unique "key" prop', // React key warning (fix upstream)
+  'not in fullscreen state',                  // ESC handler when not fullscreen
+  'Unable to simultaneously satisfy constraints', // KSPlayer AutoLayout noise
+  'nw_endpoint_flow_failed',                  // network subsystem noise
+  'nw_socket_handle_socket_event',            // network subsystem noise
+  'warning KSPlayer: KSOptions.swift:387',    // videoClockSync spam (100+/session)
+  'warning KSPlayer: KSOptions.swift:524',    // audio channel config
+  'warning KSPlayer: KSOptions.swift:528',    // audio channel config
+  'warning KSPlayer: KSOptions.swift:548',    // audio channel config
+  'warning KSPlayer: AVFFmpegExtension',      // audio layout tag
+  'warning KSPlayer: Resample.swift',         // audio format
+  'warning KSPlayer: AudioEnginePlayer',      // audio engine prep
 ];
 
 function isQuiet(args: any[]): boolean {

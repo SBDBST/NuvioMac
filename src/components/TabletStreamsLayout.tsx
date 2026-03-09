@@ -616,7 +616,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     zIndex: 2,
   },
   streamsContainer: {
-    paddingHorizontal: isMacCatalyst ? 16 : 12,
+    paddingHorizontal: isMacCatalyst ? 20 : 12,
     paddingBottom: 20,
     width: '100%',
   },

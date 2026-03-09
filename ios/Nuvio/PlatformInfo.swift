@@ -197,6 +197,12 @@ class DesktopPlayerOverlayView: UIView {
     return cmds
   }
 
+  // Debounce timestamps to prevent key-repeat spam (especially ESC/F)
+  private var lastEscTime: TimeInterval = 0
+  private var lastFKeyTime: TimeInterval = 0
+  private var lastSpaceTime: TimeInterval = 0
+  private static let keyCooldown: TimeInterval = 0.4
+
   @objc private func arrowLeft() {
     nuvioLog("[DesktopPlayerOverlay] LEFT -> seekBack")
     PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
@@ -214,10 +220,16 @@ class DesktopPlayerOverlayView: UIView {
     PlatformInfo.shared?.emitKeyCommand("playerVolumeDown")
   }
   @objc private func spaceKey() {
+    let now = CACurrentMediaTime()
+    guard now - lastSpaceTime > Self.keyCooldown else { return }
+    lastSpaceTime = now
     nuvioLog("[DesktopPlayerOverlay] SPACE -> toggle")
     PlatformInfo.shared?.emitKeyCommand("playerToggle")
   }
   @objc private func escapeKey() {
+    let now = CACurrentMediaTime()
+    guard now - lastEscTime > Self.keyCooldown else { return }
+    lastEscTime = now
     // ESC only exits fullscreen. If not fullscreen, show controls instead.
     if isMacFullscreen() {
       nuvioLog("[DesktopPlayerOverlay] ESC -> exit fullscreen")
@@ -228,6 +240,9 @@ class DesktopPlayerOverlayView: UIView {
     }
   }
   @objc private func fKey() {
+    let now = CACurrentMediaTime()
+    guard now - lastFKeyTime > Self.keyCooldown else { return }
+    lastFKeyTime = now
     nuvioLog("[DesktopPlayerOverlay] F -> fullscreen")
     toggleMacFullscreen()
   }
