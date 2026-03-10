@@ -611,6 +611,12 @@ const KSPlayerCore: React.FC = () => {
     }, 3000);
   }, [showControls, toggleControls, hideControls, paused, controlsTimeout]);
 
+  // ─── Desktop key command handlers (Catalyst only) ─────────────────
+  // Keyboard input is intercepted by NuvioWindow.sendEvent BEFORE the
+  // responder chain. Commands arrive here via PlatformInfo event emitter.
+  // Fullscreen (F) and ESC-when-fullscreen are handled natively and
+  // never reach JS. ESC-when-not-fullscreen arrives as 'escape'.
+
   const playerKeyHandlers = useCallback(() => {
     if (!isMacCatalyst) return {};
     return {
@@ -639,10 +645,7 @@ const KSPlayerCore: React.FC = () => {
           setVolumeState(previousVolumeRef.current);
         }
       },
-      playerShowControls: () => {
-        // ESC when not fullscreen -- show controls then auto-hide
-        showControlsForMouse();
-      },
+      // Mouse hover (native fallback -- primary is JS onPointerMove)
       playerMouseMove: () => showControlsForMouse(),
       playerMouseIdle: () => {
         if (!paused && showControls) hideControls();
@@ -650,11 +653,11 @@ const KSPlayerCore: React.FC = () => {
       playerMouseLeave: () => {
         if (!paused && showControls) hideControls();
       },
-      // Menu-level ESC and back both close the player
+      // ESC (when not fullscreen) and Cmd+[ both close the player
       escape: () => handleClose(),
       back: () => handleClose(),
     };
-  }, [controls, handleClose, volume, paused, showControls, showControlsForMouse, hideControls, toggleControls]);
+  }, [controls, handleClose, volume, paused, showControls, showControlsForMouse, hideControls]);
 
   useKeyCommands(playerKeyHandlers());
 
@@ -918,15 +921,12 @@ const KSPlayerCore: React.FC = () => {
         />
       )}
 
-      {/* Desktop keyboard overlay (Catalyst only, renders nothing on mobile) */}
+      {/* Lifecycle overlay: sets isPlayerActive flag, provides hover fallback */}
       <DesktopPlayerOverlay />
 
-      {/* Desktop click-to-play area -- always present when video loaded.
-          zIndex 6: above video surface, below controls (zIndex 20).
-          Controls use pointerEvents="box-none" so clicks on empty space
-          fall through to this layer for instant play/pause.
-          Also handles mouse hover to show/hide controls since this is
-          the topmost interactive layer on the player surface. */}
+      {/* Desktop interaction surface -- click to play/pause, mouse move to show controls.
+          zIndex 6: above video (0) and overlay (2), below controls (20).
+          Controls use pointerEvents="box-none" so taps on empty space fall through here. */}
       {isMacCatalyst && isVideoLoaded && (
         <View
           style={[StyleSheet.absoluteFill, { zIndex: 6 }]}
@@ -935,7 +935,7 @@ const KSPlayerCore: React.FC = () => {
             controls.togglePlayback();
             showControlsForMouse();
           }}
-          // @ts-ignore -- Pointer Events available on Fabric (RN 0.71+)
+          // @ts-ignore -- Pointer Events (Fabric RN 0.71+)
           onPointerMove={() => showControlsForMouse()}
         />
       )}

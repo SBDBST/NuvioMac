@@ -39,7 +39,11 @@ public class AppDelegate: ExpoAppDelegate {
     bindReactNativeFactory(factory)
 
 #if os(iOS) || os(tvOS)
+    #if targetEnvironment(macCatalyst)
+    window = NuvioWindow(frame: UIScreen.main.bounds)
+    #else
     window = UIWindow(frame: UIScreen.main.bounds)
+    #endif
     factory.startReactNative(
       withModuleName: "main",
       in: window,
@@ -93,17 +97,13 @@ public class AppDelegate: ExpoAppDelegate {
     builder.remove(menu: .substitutions)
     builder.remove(menu: .transformations)
 
-    // Navigation shortcuts
+    // Navigation shortcuts (Cmd+key only -- player keys are handled by NuvioWindow)
     let navChildren: [UIKeyCommand] = [
       UIKeyCommand(title: "Search", action: #selector(UIResponder.handleCmdK), input: "k", modifierFlags: .command),
       UIKeyCommand(title: "Preferences...", action: #selector(UIResponder.handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(UIResponder.handleCmdBack), input: "[", modifierFlags: .command),
     ]
-    // ESC without modifiers -- fires globally, handled by the player to close
-    // or by other screens to go back. Hidden so it doesn't appear in menu bar.
-    let escCmd = UIKeyCommand(title: "", action: #selector(UIResponder.handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: [])
-    escCmd.discoverabilityTitle = nil
-    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren + [escCmd])
+    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
     builder.insertSibling(navMenu, afterMenu: .view)
 
     // Tab switching -- order matches the tab bar: Home, Library, Search, Downloads, Settings

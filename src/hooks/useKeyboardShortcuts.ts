@@ -23,12 +23,14 @@ function getEmitter(): NativeEventEmitter | null {
 }
 
 type CommandId =
+  // Navigation (Cmd+key menu shortcuts)
   | 'search' | 'settings' | 'back' | 'escape'
   | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5'
+  // Player (NuvioWindow keyboard interception)
   | 'playerToggle' | 'playerSeekBack' | 'playerSeekForward'
-  | 'playerMute' | 'playerFullscreen' | 'playerShowControls'
-  | 'playerVolumeUp' | 'playerVolumeDown'
-  | 'playerClick' | 'playerMouseMove' | 'playerMouseIdle' | 'playerMouseLeave';
+  | 'playerMute' | 'playerVolumeUp' | 'playerVolumeDown'
+  // Mouse (native hover fallback)
+  | 'playerMouseMove' | 'playerMouseIdle' | 'playerMouseLeave';
 
 /**
  * Listen for a specific keyboard shortcut by command ID.

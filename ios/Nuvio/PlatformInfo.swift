@@ -2,10 +2,28 @@ import Foundation
 import UIKit
 import React
 
+// ═══════════════════════════════════════════════════════════════════════
+// NuvioMac Player Input Architecture
+//
+// KEYBOARD:  NuvioWindow.sendEvent intercepts key presses BEFORE the
+//            responder chain. When the player is active, player keys
+//            (Space, F, ESC, arrows, M, J, L) are consumed here and
+//            routed to JS via PlatformInfo. KSPlayer never sees them.
+//            When the player is inactive, all keys pass through normally.
+//
+// MOUSE:     JS onPointerMove on the click-to-play surface (primary).
+//            Native UIHoverGestureRecognizer on the overlay (fallback).
+//
+// CLICK:     JS onResponderRelease on the click-to-play surface.
+//
+// CONTROLS:  pointerEvents="box-none" on the controls container lets
+//            clicks on empty space fall through to click-to-play.
+//
+// FULLSCREEN: Native toggleFullscreen via NSWindow, callable from JS.
+// ═══════════════════════════════════════════════════════════════════════
+
 // MARK: - Debug Logging
 
-/// Set to true to enable verbose native overlay/keyboard logs.
-/// Automatically disabled in release builds regardless of this flag.
 private let kNuvioVerboseLogging = false
 
 private func nuvioLog(_ message: String) {
@@ -16,7 +34,114 @@ private func nuvioLog(_ message: String) {
   #endif
 }
 
-// MARK: - PlatformInfo Event Emitter (keyboard shortcuts + constants)
+// MARK: - NuvioWindow (keyboard interception at the window level)
+
+#if targetEnvironment(macCatalyst)
+
+/// Custom UIWindow that intercepts keyboard events before the responder
+/// chain. This bypasses KSPlayer's first-responder keyboard handling
+/// entirely -- no fighting for focus, no timers, no monitors.
+///
+/// When `PlatformInfo.isPlayerActive` is true, player keys are consumed
+/// here and emitted to JS. When false, all events pass through normally
+/// so standard text input, button activation, etc. work as expected.
+class NuvioWindow: UIWindow {
+
+  // Track which keys we've consumed on began so we also consume their
+  // ended/cancelled phases. Prevents stale key-down state in UIKit.
+  private var consumedKeyCodes = Set<Int>()
+
+  // Debounce for keys that suffer from key-repeat (ESC, F, Space)
+  private var lastKeyTimes: [Int: TimeInterval] = [:]
+  private let debounceInterval: TimeInterval = 0.3
+
+  override func sendEvent(_ event: UIEvent) {
+    // Only intercept press events when the player is active
+    guard PlatformInfo.isPlayerActive, event.type == .presses,
+          let pressEvent = event as? UIPressesEvent else {
+      super.sendEvent(event)
+      return
+    }
+
+    for press in pressEvent.allPresses {
+      guard let key = press.key else { continue }
+      let code = Int(key.keyCode.rawValue)
+
+      if press.phase == .began {
+        if let commandId = playerCommandForKey(key) {
+          // Debounce: skip if fired too recently
+          let now = CACurrentMediaTime()
+          if let last = lastKeyTimes[code], now - last < debounceInterval {
+            return // consume silently
+          }
+          lastKeyTimes[code] = now
+
+          // Emit to JS and consume the event
+          handlePlayerCommand(commandId, key: key)
+          consumedKeyCodes.insert(code)
+          return
+        }
+      } else if press.phase == .ended || press.phase == .cancelled {
+        if consumedKeyCodes.remove(code) != nil {
+          return // consume the up phase too
+        }
+      }
+    }
+
+    // Not a player key or player not active -- pass through
+    super.sendEvent(event)
+  }
+
+  /// Maps a UIKey to a player command ID, or nil if not a player key.
+  private func playerCommandForKey(_ key: UIKey) -> String? {
+    // Don't intercept if any modifier is held (Cmd+F, Cmd+Space, etc.
+    // should not trigger player commands)
+    if !key.modifierFlags.intersection([.command, .control, .alternate]).isEmpty {
+      return nil
+    }
+
+    switch key.keyCode {
+    case .keyboardSpacebar:     return "playerToggle"
+    case .keyboardEscape:       return "playerEscape"  // special: fullscreen or close
+    case .keyboardF:            return "playerFullscreen"
+    case .keyboardLeftArrow:    return "playerSeekBack"
+    case .keyboardRightArrow:   return "playerSeekForward"
+    case .keyboardUpArrow:      return "playerVolumeUp"
+    case .keyboardDownArrow:    return "playerVolumeDown"
+    case .keyboardM:            return "playerMute"
+    case .keyboardJ:            return "playerSeekBack"
+    case .keyboardL:            return "playerSeekForward"
+    default:                    return nil
+    }
+  }
+
+  /// Handles a player command, performing native actions where needed
+  /// (fullscreen) or emitting to JS for everything else.
+  private func handlePlayerCommand(_ commandId: String, key: UIKey) {
+    switch commandId {
+    case "playerEscape":
+      if isMacFullscreen() {
+        nuvioLog("[NuvioWindow] ESC -> exit fullscreen")
+        toggleMacFullscreen()
+      } else {
+        nuvioLog("[NuvioWindow] ESC -> close player")
+        PlatformInfo.shared?.emitKeyCommand("escape")
+      }
+
+    case "playerFullscreen":
+      nuvioLog("[NuvioWindow] F -> toggle fullscreen")
+      toggleMacFullscreen()
+
+    default:
+      nuvioLog("[NuvioWindow] \(commandId)")
+      PlatformInfo.shared?.emitKeyCommand(commandId)
+    }
+  }
+}
+
+#endif
+
+// MARK: - PlatformInfo Event Emitter
 
 @objc(PlatformInfo)
 class PlatformInfo: RCTEventEmitter {
@@ -24,14 +149,16 @@ class PlatformInfo: RCTEventEmitter {
   static var shared: PlatformInfo?
   private var hasListeners = false
 
+  /// True when the player is on screen. Set by DesktopPlayerOverlayView.
+  /// Read by NuvioWindow to decide whether to intercept keyboard events.
+  static var isPlayerActive = false
+
   override init() {
     super.init()
     PlatformInfo.shared = self
   }
 
-  @objc override static func requiresMainQueueSetup() -> Bool {
-    return false
-  }
+  @objc override static func requiresMainQueueSetup() -> Bool { false }
 
   @objc override func constantsToExport() -> [AnyHashable: Any]! {
     var isMacCatalyst = false
@@ -41,17 +168,9 @@ class PlatformInfo: RCTEventEmitter {
     return ["isMacCatalyst": isMacCatalyst]
   }
 
-  override func supportedEvents() -> [String]! {
-    return ["onKeyCommand"]
-  }
-
-  override func startObserving() {
-    hasListeners = true
-  }
-
-  override func stopObserving() {
-    hasListeners = false
-  }
+  override func supportedEvents() -> [String]! { ["onKeyCommand"] }
+  override func startObserving() { hasListeners = true }
+  override func stopObserving() { hasListeners = false }
 
   func emitKeyCommand(_ commandId: String) {
     guard hasListeners else { return }
@@ -61,9 +180,7 @@ class PlatformInfo: RCTEventEmitter {
   /// Called from JS to toggle macOS native fullscreen
   @objc func toggleFullscreen() {
     #if targetEnvironment(macCatalyst)
-    DispatchQueue.main.async {
-      toggleMacFullscreen()
-    }
+    DispatchQueue.main.async { toggleMacFullscreen() }
     #endif
   }
 }
@@ -77,26 +194,19 @@ class HoverableNativeView: UIView {
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
-
     #if targetEnvironment(macCatalyst)
-    let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleHover(_:)))
-    addGestureRecognizer(hover)
+    addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(handleHover(_:))))
     #endif
   }
 
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
+  required init?(coder: NSCoder) { fatalError() }
 
   #if targetEnvironment(macCatalyst)
-  @objc private func handleHover(_ recognizer: UIHoverGestureRecognizer) {
-    switch recognizer.state {
-    case .began:
-      onHoverIn?([:])
-    case .ended, .cancelled:
-      onHoverOut?([:])
-    default:
-      break
+  @objc private func handleHover(_ r: UIHoverGestureRecognizer) {
+    switch r.state {
+    case .began:          onHoverIn?([:])
+    case .ended, .cancelled: onHoverOut?([:])
+    default: break
     }
   }
   #endif
@@ -104,215 +214,84 @@ class HoverableNativeView: UIView {
 
 @objc(HoverViewManager)
 class HoverViewManager: RCTViewManager {
-  override static func requiresMainQueueSetup() -> Bool {
-    return false
-  }
-
-  override func view() -> UIView! {
-    return HoverableNativeView()
-  }
+  override static func requiresMainQueueSetup() -> Bool { false }
+  override func view() -> UIView! { HoverableNativeView() }
 }
 
-// MARK: - Fullscreen helper (shared)
+// MARK: - Fullscreen helpers
 
 #if targetEnvironment(macCatalyst)
-private func isMacFullscreen() -> Bool {
+func isMacFullscreen() -> Bool {
   guard let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
         let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject else { return false }
-  // NSWindow.styleMask contains .fullScreen (1 << 14 = 16384) when in fullscreen
   let mask = (nsWindow.value(forKey: "styleMask") as? UInt) ?? 0
   return (mask & (1 << 14)) != 0
 }
 
-private func toggleMacFullscreen() {
+func toggleMacFullscreen() {
   if let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
      let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject {
     nsWindow.perform(NSSelectorFromString("toggleFullScreen:"), with: nil)
-    nuvioLog("[DesktopPlayerOverlay] toggleFullScreen called")
-  } else {
-    NSLog("[DesktopPlayerOverlay] Could not get NSWindow for fullscreen")
   }
 }
 #endif
 
-// MARK: - DesktopPlayerOverlay (keyboard + mouse hover for player on Catalyst)
-// Click-to-play and double-click-to-fullscreen are handled on the JS side
-// to avoid gesture recogniser conflicts and the 300ms single-click delay.
+// MARK: - DesktopPlayerOverlay (hover-only, sets isPlayerActive flag)
+//
+// This view has ONE job: track whether the player is on screen via the
+// isPlayerActive flag. It also provides a native hover gesture recognizer
+// as a fallback for mouse-move detection (primary path is JS onPointerMove).
+//
+// It does NOT handle keyboard input. That's done by NuvioWindow.
+// It does NOT fight for first responder. That's no longer needed.
 
 #if targetEnvironment(macCatalyst)
 class DesktopPlayerOverlayView: UIView {
   @objc var onMouseMove: RCTDirectEventBlock?
 
   private var mouseIdleTimer: Timer?
-  private var firstResponderMonitor: Timer?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
     isUserInteractionEnabled = true
-
-    // Hover only -- no click/double-click gestures (handled in JS)
-    let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:)))
-    addGestureRecognizer(hover)
-
-    nuvioLog("[DesktopPlayerOverlay] Initialized with hover gesture")
+    addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:))))
   }
 
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
+  required init?(coder: NSCoder) { fatalError() }
 
-  override var canBecomeFirstResponder: Bool { true }
-
-  // Allow touches to pass through to views underneath (controls, buttons)
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    return nil
-  }
+  // Pass all touches through -- this view is invisible to taps.
+  // The JS click-to-play layer at a higher zIndex handles clicks.
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    if window != nil {
-      startFirstResponderMonitor()
-    } else {
-      stopFirstResponderMonitor()
-    }
+    let active = (window != nil)
+    PlatformInfo.isPlayerActive = active
+    NSLog("[DesktopPlayerOverlay] isPlayerActive = \(active)")
   }
 
-  /// Persistent timer that monitors first responder status and reclaims it
-  /// whenever KSPlayer or another view steals it. KSPlayer steals focus
-  /// when playback starts (~5s after open), so a one-shot retry isn't enough.
-  private func startFirstResponderMonitor() {
-    stopFirstResponderMonitor()
-
-    // Initial quick claim
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-      self?.claimFirstResponder(label: "initial")
-    }
-
-    // Then monitor every 1.5s for the lifetime of the view
-    firstResponderMonitor = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-      guard let self = self, self.window != nil else { return }
-      if !self.isFirstResponder {
-        self.claimFirstResponder(label: "monitor")
-      }
-    }
-  }
-
-  private func stopFirstResponderMonitor() {
-    firstResponderMonitor?.invalidate()
-    firstResponderMonitor = nil
-  }
-
-  private func claimFirstResponder(label: String) {
-    guard window != nil, !isFirstResponder else { return }
-    let result = becomeFirstResponder()
-    NSLog("[DesktopPlayerOverlay] \(label) becomeFirstResponder: \(result)")
-  }
-
-  // Override keyCommands to intercept keys BEFORE the UIKit focus system
-  override var keyCommands: [UIKeyCommand]? {
-    let cmds = [
-      UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(arrowLeft)),
-      UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(arrowRight)),
-      UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(arrowUp)),
-      UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(arrowDown)),
-      UIKeyCommand(input: " ", modifierFlags: [], action: #selector(spaceKey)),
-      UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(escapeKey)),
-      UIKeyCommand(input: "f", modifierFlags: [], action: #selector(fKey)),
-      UIKeyCommand(input: "m", modifierFlags: [], action: #selector(mKey)),
-      UIKeyCommand(input: "j", modifierFlags: [], action: #selector(jKey)),
-      UIKeyCommand(input: "l", modifierFlags: [], action: #selector(lKey)),
-    ]
-    for c in cmds { c.discoverabilityTitle = nil }
-    return cmds
-  }
-
-  // Debounce timestamps to prevent key-repeat spam (especially ESC/F)
-  private var lastEscTime: TimeInterval = 0
-  private var lastFKeyTime: TimeInterval = 0
-  private var lastSpaceTime: TimeInterval = 0
-  private static let keyCooldown: TimeInterval = 0.4
-
-  @objc private func arrowLeft() {
-    nuvioLog("[DesktopPlayerOverlay] LEFT -> seekBack")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
-  }
-  @objc private func arrowRight() {
-    nuvioLog("[DesktopPlayerOverlay] RIGHT -> seekForward")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
-  }
-  @objc private func arrowUp() {
-    nuvioLog("[DesktopPlayerOverlay] UP -> volumeUp")
-    PlatformInfo.shared?.emitKeyCommand("playerVolumeUp")
-  }
-  @objc private func arrowDown() {
-    nuvioLog("[DesktopPlayerOverlay] DOWN -> volumeDown")
-    PlatformInfo.shared?.emitKeyCommand("playerVolumeDown")
-  }
-  @objc private func spaceKey() {
-    let now = CACurrentMediaTime()
-    guard now - lastSpaceTime > Self.keyCooldown else { return }
-    lastSpaceTime = now
-    nuvioLog("[DesktopPlayerOverlay] SPACE -> toggle")
-    PlatformInfo.shared?.emitKeyCommand("playerToggle")
-  }
-  @objc private func escapeKey() {
-    let now = CACurrentMediaTime()
-    guard now - lastEscTime > Self.keyCooldown else { return }
-    lastEscTime = now
-    if isMacFullscreen() {
-      nuvioLog("[DesktopPlayerOverlay] ESC -> exit fullscreen")
-      toggleMacFullscreen()
-    } else {
-      // Not fullscreen: close the player (same as back button)
-      nuvioLog("[DesktopPlayerOverlay] ESC -> close player")
-      PlatformInfo.shared?.emitKeyCommand("escape")
-    }
-  }
-  @objc private func fKey() {
-    let now = CACurrentMediaTime()
-    guard now - lastFKeyTime > Self.keyCooldown else { return }
-    lastFKeyTime = now
-    nuvioLog("[DesktopPlayerOverlay] F -> fullscreen")
-    toggleMacFullscreen()
-  }
-  @objc private func mKey() {
-    nuvioLog("[DesktopPlayerOverlay] M -> mute")
-    PlatformInfo.shared?.emitKeyCommand("playerMute")
-  }
-  @objc private func jKey() {
-    nuvioLog("[DesktopPlayerOverlay] J -> seekBack")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
-  }
-  @objc private func lKey() {
-    nuvioLog("[DesktopPlayerOverlay] L -> seekForward")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
-  }
-
-  // MARK: Mouse movement
-  @objc private func handleMouseMove(_ recognizer: UIHoverGestureRecognizer) {
-    switch recognizer.state {
+  @objc private func handleMouseMove(_ r: UIHoverGestureRecognizer) {
+    switch r.state {
     case .began, .changed:
       PlatformInfo.shared?.emitKeyCommand("playerMouseMove")
       resetMouseIdleTimer()
     case .ended, .cancelled:
       PlatformInfo.shared?.emitKeyCommand("playerMouseLeave")
-    default:
-      break
+    default: break
     }
   }
 
   private func resetMouseIdleTimer() {
     mouseIdleTimer?.invalidate()
-    mouseIdleTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-      guard self != nil else { return }
+    mouseIdleTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
       PlatformInfo.shared?.emitKeyCommand("playerMouseIdle")
     }
   }
 
   deinit {
     mouseIdleTimer?.invalidate()
-    stopFirstResponderMonitor()
+    PlatformInfo.isPlayerActive = false
     nuvioLog("[DesktopPlayerOverlay] Deinit")
   }
 }
@@ -322,8 +301,10 @@ class DesktopPlayerOverlayManager: RCTViewManager {
   override static func requiresMainQueueSetup() -> Bool { false }
   override func view() -> UIView! { DesktopPlayerOverlayView() }
 }
+
 #else
-// Non-Catalyst stub so JS requireNativeComponent doesn't crash
+
+// Non-Catalyst stub
 @objc(DesktopPlayerOverlayManager)
 class DesktopPlayerOverlayManager: RCTViewManager {
   override static func requiresMainQueueSetup() -> Bool { false }
@@ -331,22 +312,25 @@ class DesktopPlayerOverlayManager: RCTViewManager {
     let v = UIView(); v.backgroundColor = .clear; return v
   }
 }
+
 #endif
 
-// MARK: - UIResponder extension for MENU keyboard shortcuts
-// Handles Cmd+key shortcuts from the menu bar. Player-specific keys
-// (space, arrows, etc.) are handled by DesktopPlayerOverlay instead.
+// MARK: - UIResponder extension (Cmd+key menu shortcuts only)
+//
+// These handle MENU keyboard shortcuts (Cmd+K, Cmd+[, Cmd+1-5).
+// Player-specific keys (Space, F, ESC, arrows) are handled by
+// NuvioWindow -- they do NOT go through the menu/responder system.
 
 #if targetEnvironment(macCatalyst)
 extension UIResponder {
-  @objc func handleCmdK() { PlatformInfo.shared?.emitKeyCommand("search") }
+  @objc func handleCmdK()     { PlatformInfo.shared?.emitKeyCommand("search") }
   @objc func handleCmdComma() { PlatformInfo.shared?.emitKeyCommand("settings") }
-  @objc func handleCmdBack() { PlatformInfo.shared?.emitKeyCommand("back") }
-  @objc func handleEscape() { PlatformInfo.shared?.emitKeyCommand("escape") }
-  @objc func handleTab1() { PlatformInfo.shared?.emitKeyCommand("tab1") }
-  @objc func handleTab2() { PlatformInfo.shared?.emitKeyCommand("tab2") }
-  @objc func handleTab3() { PlatformInfo.shared?.emitKeyCommand("tab3") }
-  @objc func handleTab4() { PlatformInfo.shared?.emitKeyCommand("tab4") }
-  @objc func handleTab5() { PlatformInfo.shared?.emitKeyCommand("tab5") }
+  @objc func handleCmdBack()  { PlatformInfo.shared?.emitKeyCommand("back") }
+  @objc func handleEscape()   { PlatformInfo.shared?.emitKeyCommand("escape") }
+  @objc func handleTab1()     { PlatformInfo.shared?.emitKeyCommand("tab1") }
+  @objc func handleTab2()     { PlatformInfo.shared?.emitKeyCommand("tab2") }
+  @objc func handleTab3()     { PlatformInfo.shared?.emitKeyCommand("tab3") }
+  @objc func handleTab4()     { PlatformInfo.shared?.emitKeyCommand("tab4") }
+  @objc func handleTab5()     { PlatformInfo.shared?.emitKeyCommand("tab5") }
 }
 #endif

@@ -1,12 +1,16 @@
 /**
- * DesktopPlayerOverlay - Native keyboard handling for the player on Catalyst.
+ * DesktopPlayerOverlay -- Catalyst player lifecycle + hover fallback.
  *
- * This view sits behind the controls and captures keyboard events via
- * becomeFirstResponder. Mouse hover for show/hide controls is also handled
- * natively. Click-to-play and double-click-to-fullscreen are handled in JS
- * (no gesture recogniser delay).
+ * This native view does two things:
+ * 1. Sets PlatformInfo.isPlayerActive when mounted/unmounted, which
+ *    tells NuvioWindow whether to intercept keyboard events.
+ * 2. Provides a native UIHoverGestureRecognizer as a fallback for
+ *    mouse-move detection (primary path is JS onPointerMove).
  *
- * On mobile, renders nothing (zero overhead).
+ * It does NOT handle keyboard input (NuvioWindow does that).
+ * It does NOT fight for first responder.
+ *
+ * On mobile, renders children directly (zero overhead).
  */
 import React from 'react';
 import { View, requireNativeComponent, StyleSheet, ViewProps } from 'react-native';
@@ -30,7 +34,7 @@ const DesktopPlayerOverlay: React.FC<DesktopPlayerOverlayProps> = ({
   }
 
   return (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 5 }]} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, { zIndex: 2 }]} pointerEvents="box-none">
       {children}
       <NativeOverlay
         style={StyleSheet.absoluteFill}
