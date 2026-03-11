@@ -591,16 +591,9 @@ const KSPlayerCore: React.FC = () => {
 
   // ─── Desktop controls (Catalyst only) ────────────────────────────
   const previousVolumeRef = useRef(1.0);
-  const lastMouseShowRef = useRef(0);
 
-  // Show controls on mouse move, hide on idle.
-  // Throttled to max once per 200ms to avoid excessive re-renders from
-  // continuous onPointerMove events (60fps mouse tracking).
+  // Show controls on mouse move (called from native hover event), hide on idle.
   const showControlsForMouse = useCallback(() => {
-    const now = Date.now();
-    if (now - lastMouseShowRef.current < 200) return;
-    lastMouseShowRef.current = now;
-
     if (!showControls) {
       toggleControls();
     }
@@ -613,10 +606,10 @@ const KSPlayerCore: React.FC = () => {
 
   // ─── Desktop key command handlers (Catalyst only) ─────────────────
   // Keyboard input goes through AppDelegate.buildMenu as hidden
-  // UIKeyCommand items with wantsPriorityOverSystemBehavior. Player keys
-  // are only in the menu when isPlayerActive is true (dynamic rebuild).
-  // Fullscreen (F) and ESC-when-fullscreen are handled natively in the
-  // UIResponder extension. ESC-when-not-fullscreen arrives as 'escape'.
+  // UIKeyCommand items. KSPlayer's own keyCommands are suppressed via
+  // runtime swizzle when isPlayerActive is true, preventing dual-firing.
+  // Fullscreen (F) and ESC-when-fullscreen are handled natively.
+  // Mouse hover (playerMouseMove/Idle/Leave) comes from native overlay.
 
   const playerKeyHandlers = useCallback(() => {
     if (!isMacCatalyst) return {};
@@ -646,7 +639,7 @@ const KSPlayerCore: React.FC = () => {
           setVolumeState(previousVolumeRef.current);
         }
       },
-      // Mouse hover (native fallback -- primary is JS onPointerMove)
+      // Mouse hover (native UIHoverGestureRecognizer on overlay)
       playerMouseMove: () => showControlsForMouse(),
       playerMouseIdle: () => {
         if (!paused && showControls) hideControls();
@@ -922,12 +915,13 @@ const KSPlayerCore: React.FC = () => {
         />
       )}
 
-      {/* Lifecycle overlay: sets isPlayerActive flag (triggers menu rebuild), provides hover fallback */}
+      {/* Lifecycle overlay: sets isPlayerActive flag (triggers menu rebuild + swizzle), hover detection */}
       <DesktopPlayerOverlay />
 
-      {/* Desktop interaction surface -- click to play/pause, mouse move to show controls.
+      {/* Desktop click-to-play surface.
           zIndex 6: above video (0) and overlay (2), below controls (20).
-          Controls use pointerEvents="box-none" so taps on empty space fall through here. */}
+          Controls use pointerEvents="box-none" so taps on empty space fall through here.
+          Mouse hover is handled natively by the overlay's UIHoverGestureRecognizer. */}
       {isMacCatalyst && isVideoLoaded && (
         <View
           style={[StyleSheet.absoluteFill, { zIndex: 6 }]}
@@ -936,8 +930,6 @@ const KSPlayerCore: React.FC = () => {
             controls.togglePlayback();
             showControlsForMouse();
           }}
-          // @ts-ignore -- Pointer Events (Fabric RN 0.71+)
-          onPointerMove={() => showControlsForMouse()}
         />
       )}
 

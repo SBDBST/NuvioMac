@@ -1,15 +1,16 @@
 /**
- * DesktopPlayerOverlay -- Catalyst player lifecycle + hover fallback.
+ * DesktopPlayerOverlay -- Catalyst player lifecycle + mouse hover.
  *
- * This native view does two things:
+ * This native view does three things:
  * 1. Sets PlatformInfo.isPlayerActive when mounted/unmounted, which
- *    triggers UIMenuSystem.main.setNeedsRebuild() to add/remove
- *    player keyboard shortcuts from the menu bar.
- * 2. Provides a native UIHoverGestureRecognizer as a fallback for
- *    mouse-move detection (primary path is JS onPointerMove).
+ *    triggers UIMenuSystem rebuild (add/remove player keyboard shortcuts)
+ *    and activates the keyCommands swizzle (suppress KSPlayer's keys).
+ * 2. Detects mouse hover via UIHoverGestureRecognizer, emitting
+ *    playerMouseMove/Idle/Leave events to JS for controls show/hide.
+ * 3. hitTest returns self for .hover events but nil for touches,
+ *    so hover works but clicks pass through to the JS click-to-play layer.
  *
- * It does NOT handle keyboard input (menu system does that).
- * It does NOT fight for first responder.
+ * It does NOT handle keyboard input (menu system + swizzle does that).
  *
  * On mobile, renders children directly (zero overhead).
  */

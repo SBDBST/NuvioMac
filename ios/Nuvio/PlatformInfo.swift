@@ -1,20 +1,17 @@
 import Foundation
 import UIKit
+import ObjectiveC
 import React
 
 // ═══════════════════════════════════════════════════════════════════════
-// NuvioMac Player Input Architecture v3
+// NuvioMac Player Input Architecture v4 (Final)
 //
-// KEYBOARD:  All shortcuts go through AppDelegate.buildMenu as hidden
-//            UIKeyCommand items. Player keys (Space, F, ESC, arrows,
-//            M, J, L) are ONLY added when the player is active, and
-//            use wantsPriorityOverSystemBehavior = true to override
-//            KSPlayer's own keyCommands.
-//            When the player closes, UIMenuSystem.main.setNeedsRebuild()
-//            removes them so Space types normally, arrows scroll, etc.
+// KEYBOARD:  Menu-based UIKeyCommand in AppDelegate.buildMenu, with
+//            runtime swizzle of UIView.keyCommands to suppress KSPlayer's
+//            own key handling during playback. This prevents dual-firing.
 //
-// MOUSE:     JS onPointerMove on the click-to-play surface (primary).
-//            Native UIHoverGestureRecognizer on the overlay (fallback).
+// MOUSE:     Native UIHoverGestureRecognizer on the overlay view.
+//            hitTest returns self for .hover events, nil for touches.
 //
 // CLICK:     JS onResponderRelease on the click-to-play surface.
 //
@@ -33,6 +30,45 @@ private func nuvioLog(_ message: String) {
   #endif
 }
 
+// MARK: - KeyCommands Swizzle
+//
+// When the player is active, ALL UIView subclasses (including KSPlayer's
+// views) return nil for keyCommands. This prevents KSPlayer from handling
+// Space, F, ESC, arrows etc. Our menu-level UIKeyCommand items are the
+// ONLY keyboard handlers during playback.
+//
+// When the player is inactive, original behaviour is restored.
+// The swizzle is installed once and the behaviour is gated dynamically.
+
+#if targetEnvironment(macCatalyst)
+
+private var swizzleInstalled = false
+
+private func installKeyCommandsSwizzle() {
+  guard !swizzleInstalled else { return }
+  swizzleInstalled = true
+
+  let original = class_getInstanceMethod(UIView.self, #selector(getter: UIResponder.keyCommands))
+  let replacement = class_getInstanceMethod(UIView.self, #selector(UIView._nuvio_keyCommands))
+
+  if let original = original, let replacement = replacement {
+    method_exchangeImplementations(original, replacement)
+    NSLog("[Nuvio] keyCommands swizzle installed")
+  }
+}
+
+extension UIView {
+  @objc dynamic var _nuvio_keyCommands: [UIKeyCommand]? {
+    if PlatformInfo.isPlayerActive {
+      return nil
+    }
+    // Calls the original (swizzled) implementation
+    return self._nuvio_keyCommands
+  }
+}
+
+#endif
+
 // MARK: - PlatformInfo Event Emitter
 
 @objc(PlatformInfo)
@@ -42,15 +78,16 @@ class PlatformInfo: RCTEventEmitter {
   private var hasListeners = false
 
   /// True when the player is on screen. Toggled by DesktopPlayerOverlayView.
-  /// Read by AppDelegate.buildMenu to conditionally add player key commands.
+  /// Controls: (1) menu rebuild to add/remove player shortcuts,
+  ///           (2) keyCommands swizzle to suppress KSPlayer's key handling.
   static var isPlayerActive = false {
     didSet {
       #if targetEnvironment(macCatalyst)
       if oldValue != isPlayerActive {
-        // Rebuild the menu bar to add/remove player keyboard shortcuts
         DispatchQueue.main.async {
           UIMenuSystem.main.setNeedsRebuild()
         }
+        NSLog("[Nuvio] isPlayerActive = \(isPlayerActive)")
       }
       #endif
     }
@@ -59,6 +96,9 @@ class PlatformInfo: RCTEventEmitter {
   override init() {
     super.init()
     PlatformInfo.shared = self
+    #if targetEnvironment(macCatalyst)
+    installKeyCommandsSwizzle()
+    #endif
   }
 
   @objc override static func requiresMainQueueSetup() -> Bool { false }
@@ -137,7 +177,16 @@ func toggleMacFullscreen() {
 }
 #endif
 
-// MARK: - DesktopPlayerOverlay (lifecycle flag + hover fallback)
+// MARK: - DesktopPlayerOverlay (lifecycle + hover)
+//
+// Two jobs:
+// 1. Toggle isPlayerActive when mounted/unmounted (triggers menu rebuild
+//    and keyCommands swizzle activation).
+// 2. Detect mouse hover via UIHoverGestureRecognizer and emit events to JS.
+//
+// hitTest returns self for .hover events so the gesture recognizer fires,
+// but returns nil for all other events so touches pass through to the
+// click-to-play layer and control buttons below.
 
 #if targetEnvironment(macCatalyst)
 class DesktopPlayerOverlayView: UIView {
@@ -152,13 +201,18 @@ class DesktopPlayerOverlayView: UIView {
   }
   required init?(coder: NSCoder) { fatalError() }
 
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+  /// Return self for hover events so the gesture recognizer receives them.
+  /// Return nil for everything else so touches fall through to JS layers.
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    if let event = event, event.type == .hover {
+      return self.point(inside: point, with: event) ? self : nil
+    }
+    return nil
+  }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    let active = (window != nil)
-    PlatformInfo.isPlayerActive = active
-    NSLog("[DesktopPlayerOverlay] isPlayerActive = \(active)")
+    PlatformInfo.isPlayerActive = (window != nil)
   }
 
   @objc private func handleMouseMove(_ r: UIHoverGestureRecognizer) {
@@ -204,11 +258,6 @@ class DesktopPlayerOverlayManager: RCTViewManager {
 #endif
 
 // MARK: - UIResponder handlers for menu keyboard shortcuts
-//
-// Navigation keys (Cmd+K, Cmd+[, Cmd+1-5) are always active.
-// Player keys (Space, F, arrows, M, J, L) are only in the menu
-// when isPlayerActive is true (AppDelegate rebuilds the menu).
-// ESC is always in the menu but behaviour depends on player state.
 
 #if targetEnvironment(macCatalyst)
 extension UIResponder {
@@ -222,55 +271,24 @@ extension UIResponder {
   @objc func handleTab4()     { PlatformInfo.shared?.emitKeyCommand("tab4") }
   @objc func handleTab5()     { PlatformInfo.shared?.emitKeyCommand("tab5") }
 
-  // ── ESC (always active, behaviour depends on context) ──
+  // ── ESC (always active, context-dependent) ──
   @objc func handleEscape() {
-    if PlatformInfo.isPlayerActive {
-      if isMacFullscreen() {
-        toggleMacFullscreen()
-      } else {
-        PlatformInfo.shared?.emitKeyCommand("escape")
-      }
+    if PlatformInfo.isPlayerActive && isMacFullscreen() {
+      toggleMacFullscreen()
     } else {
       PlatformInfo.shared?.emitKeyCommand("escape")
     }
   }
 
   // ── Player keys (only in menu when player is active) ──
-  @objc func handlePlayerSpace() {
-    nuvioLog("[Menu] Space -> playerToggle")
-    PlatformInfo.shared?.emitKeyCommand("playerToggle")
-  }
-  @objc func handlePlayerF() {
-    nuvioLog("[Menu] F -> fullscreen")
-    toggleMacFullscreen()
-  }
-  @objc func handlePlayerLeft() {
-    nuvioLog("[Menu] Left -> seekBack")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
-  }
-  @objc func handlePlayerRight() {
-    nuvioLog("[Menu] Right -> seekForward")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
-  }
-  @objc func handlePlayerUp() {
-    nuvioLog("[Menu] Up -> volumeUp")
-    PlatformInfo.shared?.emitKeyCommand("playerVolumeUp")
-  }
-  @objc func handlePlayerDown() {
-    nuvioLog("[Menu] Down -> volumeDown")
-    PlatformInfo.shared?.emitKeyCommand("playerVolumeDown")
-  }
-  @objc func handlePlayerM() {
-    nuvioLog("[Menu] M -> mute")
-    PlatformInfo.shared?.emitKeyCommand("playerMute")
-  }
-  @objc func handlePlayerJ() {
-    nuvioLog("[Menu] J -> seekBack")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekBack")
-  }
-  @objc func handlePlayerL() {
-    nuvioLog("[Menu] L -> seekForward")
-    PlatformInfo.shared?.emitKeyCommand("playerSeekForward")
-  }
+  @objc func handlePlayerSpace() { PlatformInfo.shared?.emitKeyCommand("playerToggle") }
+  @objc func handlePlayerF()     { toggleMacFullscreen() }
+  @objc func handlePlayerLeft()  { PlatformInfo.shared?.emitKeyCommand("playerSeekBack") }
+  @objc func handlePlayerRight() { PlatformInfo.shared?.emitKeyCommand("playerSeekForward") }
+  @objc func handlePlayerUp()    { PlatformInfo.shared?.emitKeyCommand("playerVolumeUp") }
+  @objc func handlePlayerDown()  { PlatformInfo.shared?.emitKeyCommand("playerVolumeDown") }
+  @objc func handlePlayerM()     { PlatformInfo.shared?.emitKeyCommand("playerMute") }
+  @objc func handlePlayerJ()     { PlatformInfo.shared?.emitKeyCommand("playerSeekBack") }
+  @objc func handlePlayerL()     { PlatformInfo.shared?.emitKeyCommand("playerSeekForward") }
 }
 #endif
