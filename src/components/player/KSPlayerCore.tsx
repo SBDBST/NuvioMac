@@ -612,10 +612,11 @@ const KSPlayerCore: React.FC = () => {
   }, [showControls, toggleControls, hideControls, paused, controlsTimeout]);
 
   // ─── Desktop key command handlers (Catalyst only) ─────────────────
-  // Keyboard input is intercepted by NuvioWindow.sendEvent BEFORE the
-  // responder chain. Commands arrive here via PlatformInfo event emitter.
-  // Fullscreen (F) and ESC-when-fullscreen are handled natively and
-  // never reach JS. ESC-when-not-fullscreen arrives as 'escape'.
+  // Keyboard input goes through AppDelegate.buildMenu as hidden
+  // UIKeyCommand items with wantsPriorityOverSystemBehavior. Player keys
+  // are only in the menu when isPlayerActive is true (dynamic rebuild).
+  // Fullscreen (F) and ESC-when-fullscreen are handled natively in the
+  // UIResponder extension. ESC-when-not-fullscreen arrives as 'escape'.
 
   const playerKeyHandlers = useCallback(() => {
     if (!isMacCatalyst) return {};
@@ -921,7 +922,7 @@ const KSPlayerCore: React.FC = () => {
         />
       )}
 
-      {/* Lifecycle overlay: sets isPlayerActive flag, provides hover fallback */}
+      {/* Lifecycle overlay: sets isPlayerActive flag (triggers menu rebuild), provides hover fallback */}
       <DesktopPlayerOverlay />
 
       {/* Desktop interaction surface -- click to play/pause, mouse move to show controls.

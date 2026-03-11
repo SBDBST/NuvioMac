@@ -3,11 +3,12 @@
  *
  * This native view does two things:
  * 1. Sets PlatformInfo.isPlayerActive when mounted/unmounted, which
- *    tells NuvioWindow whether to intercept keyboard events.
+ *    triggers UIMenuSystem.main.setNeedsRebuild() to add/remove
+ *    player keyboard shortcuts from the menu bar.
  * 2. Provides a native UIHoverGestureRecognizer as a fallback for
  *    mouse-move detection (primary path is JS onPointerMove).
  *
- * It does NOT handle keyboard input (NuvioWindow does that).
+ * It does NOT handle keyboard input (menu system does that).
  * It does NOT fight for first responder.
  *
  * On mobile, renders children directly (zero overhead).

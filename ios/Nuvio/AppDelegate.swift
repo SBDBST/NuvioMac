@@ -39,11 +39,7 @@ public class AppDelegate: ExpoAppDelegate {
     bindReactNativeFactory(factory)
 
 #if os(iOS) || os(tvOS)
-    #if targetEnvironment(macCatalyst)
-    window = NuvioWindow(frame: UIScreen.main.bounds)
-    #else
     window = UIWindow(frame: UIScreen.main.bounds)
-    #endif
     factory.startReactNative(
       withModuleName: "main",
       in: window,
@@ -91,22 +87,28 @@ public class AppDelegate: ExpoAppDelegate {
     super.buildMenu(with: builder)
     guard builder.system == .main else { return }
 
-    // Remove system menus that crash when forwarded to KSPlayer's first responder
+    // Remove system menus that crash when forwarded to KSPlayer
     builder.remove(menu: .format)
     builder.remove(menu: .spelling)
     builder.remove(menu: .substitutions)
     builder.remove(menu: .transformations)
 
-    // Navigation shortcuts (Cmd+key only -- player keys are handled by NuvioWindow)
+    // ── Navigation shortcuts (always active) ──
+    let escCmd = UIKeyCommand(title: "", action: #selector(UIResponder.handleEscape), input: UIKeyCommand.inputEscape, modifierFlags: [])
+    escCmd.discoverabilityTitle = nil
+    if #available(macCatalyst 15.0, *) {
+      escCmd.wantsPriorityOverSystemBehavior = true
+    }
+
     let navChildren: [UIKeyCommand] = [
       UIKeyCommand(title: "Search", action: #selector(UIResponder.handleCmdK), input: "k", modifierFlags: .command),
       UIKeyCommand(title: "Preferences...", action: #selector(UIResponder.handleCmdComma), input: ",", modifierFlags: .command),
       UIKeyCommand(title: "Back", action: #selector(UIResponder.handleCmdBack), input: "[", modifierFlags: .command),
     ]
-    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren)
+    let navMenu = UIMenu(title: "Navigate", options: .displayInline, children: navChildren + [escCmd])
     builder.insertSibling(navMenu, afterMenu: .view)
 
-    // Tab switching -- order matches the tab bar: Home, Library, Search, Downloads, Settings
+    // ── Tab shortcuts (always active) ──
     let tabChildren: [UIKeyCommand] = [
       UIKeyCommand(title: "Home", action: #selector(UIResponder.handleTab1), input: "1", modifierFlags: .command),
       UIKeyCommand(title: "Library", action: #selector(UIResponder.handleTab2), input: "2", modifierFlags: .command),
@@ -116,6 +118,33 @@ public class AppDelegate: ExpoAppDelegate {
     ]
     let tabMenu = UIMenu(title: "Tabs", options: .displayInline, children: tabChildren)
     builder.insertChild(tabMenu, atEndOfMenu: .view)
+
+    // ── Player shortcuts (only when player is active) ──
+    // When the player opens/closes, PlatformInfo.isPlayerActive changes
+    // and triggers UIMenuSystem.main.setNeedsRebuild() which calls this
+    // method again. Player keys are only added when needed, so Space
+    // types normally in search, arrows scroll normally, etc.
+    if PlatformInfo.isPlayerActive {
+      let playerKeys: [UIKeyCommand] = [
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerSpace), input: " ", modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerF), input: "f", modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerLeft), input: UIKeyCommand.inputLeftArrow, modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerRight), input: UIKeyCommand.inputRightArrow, modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerUp), input: UIKeyCommand.inputUpArrow, modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerDown), input: UIKeyCommand.inputDownArrow, modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerM), input: "m", modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerJ), input: "j", modifierFlags: []),
+        UIKeyCommand(title: "", action: #selector(UIResponder.handlePlayerL), input: "l", modifierFlags: []),
+      ]
+      for cmd in playerKeys {
+        cmd.discoverabilityTitle = nil
+        if #available(macCatalyst 15.0, *) {
+          cmd.wantsPriorityOverSystemBehavior = true
+        }
+      }
+      let playerMenu = UIMenu(title: "", options: .displayInline, children: playerKeys)
+      builder.insertChild(playerMenu, atEndOfMenu: .view)
+    }
   }
   #endif
 }

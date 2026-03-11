@@ -26,7 +26,7 @@ type CommandId =
   // Navigation (Cmd+key menu shortcuts)
   | 'search' | 'settings' | 'back' | 'escape'
   | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5'
-  // Player (NuvioWindow keyboard interception)
+  // Player (menu-based keyboard shortcuts, active when player is open)
   | 'playerToggle' | 'playerSeekBack' | 'playerSeekForward'
   | 'playerMute' | 'playerVolumeUp' | 'playerVolumeDown'
   // Mouse (native hover fallback)
