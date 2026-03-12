@@ -49,7 +49,7 @@ private func installKeyCommandsSwizzle() {
   swizzleInstalled = true
 
   let original = class_getInstanceMethod(UIView.self, #selector(getter: UIResponder.keyCommands))
-  let replacement = class_getInstanceMethod(UIView.self, #selector(UIView._nuvio_keyCommands))
+  let replacement = class_getInstanceMethod(UIView.self, #selector(getter: UIView._nuvio_keyCommands))
 
   if let original = original, let replacement = replacement {
     method_exchangeImplementations(original, replacement)
