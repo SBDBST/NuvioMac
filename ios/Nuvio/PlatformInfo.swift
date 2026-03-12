@@ -4,18 +4,22 @@ import ObjectiveC
 import React
 
 // ═══════════════════════════════════════════════════════════════════════
-// NuvioMac Player Input Architecture v4 (Final)
+// NuvioMac Player Input Architecture v5
 //
-// KEYBOARD:  Menu-based UIKeyCommand in AppDelegate.buildMenu, with
-//            runtime swizzle of UIView.keyCommands to suppress KSPlayer's
-//            own key handling during playback. This prevents dual-firing.
+// PROBLEM: The native overlay view (DesktopPlayerOverlayView) never
+// mounts on Fabric/New Architecture because requireNativeComponent is a
+// Bridge API. This broke ALL prior approaches that depended on the view's
+// didMoveToWindow lifecycle.
 //
-// MOUSE:     Native UIHoverGestureRecognizer on the overlay view.
-//            hitTest returns self for .hover events, nil for touches.
+// FIX: Use NativeModules method calls (work on both Bridge and Fabric)
+// for the player lifecycle flag. Use Pressable onHoverIn/onHoverOut in
+// JS for mouse hover (no native view needed).
 //
-// CLICK:     JS onResponderRelease on the click-to-play surface.
-//
-// FULLSCREEN: Native toggle via NSWindow, callable from JS or menu key.
+// KEYBOARD: Menu UIKeyCommands in AppDelegate.buildMenu (dynamic).
+//           UIResponder.keyCommands swizzle suppresses KSPlayer's keys.
+// MOUSE:    JS Pressable onHoverIn/onHoverOut on click-to-play surface.
+// CLICK:    JS Pressable onPress on click-to-play surface.
+// FULLSCREEN: Native toggle via NSWindow.
 // ═══════════════════════════════════════════════════════════════════════
 
 // MARK: - Debug Logging
@@ -32,13 +36,10 @@ private func nuvioLog(_ message: String) {
 
 // MARK: - KeyCommands Swizzle
 //
-// When the player is active, ALL UIView subclasses (including KSPlayer's
-// views) return nil for keyCommands. This prevents KSPlayer from handling
-// Space, F, ESC, arrows etc. Our menu-level UIKeyCommand items are the
-// ONLY keyboard handlers during playback.
-//
-// When the player is inactive, original behaviour is restored.
-// The swizzle is installed once and the behaviour is gated dynamically.
+// Swizzles UIResponder.keyCommands (the BASE class where it's defined).
+// When isPlayerActive is true, returns nil for ALL responders, including
+// KSPlayer's views. Our menu-level UIKeyCommands are the only handlers.
+// When the player is inactive, returns the original value.
 
 #if targetEnvironment(macCatalyst)
 
@@ -46,23 +47,28 @@ private var swizzleInstalled = false
 
 private func installKeyCommandsSwizzle() {
   guard !swizzleInstalled else { return }
-  swizzleInstalled = true
 
-  let original = class_getInstanceMethod(UIView.self, #selector(getter: UIResponder.keyCommands))
-  let replacement = class_getInstanceMethod(UIView.self, #selector(getter: UIView._nuvio_keyCommands))
+  // keyCommands is defined on UIResponder, NOT UIView.
+  // Using UIView.self would return nil and the swizzle would silently fail.
+  let original = class_getInstanceMethod(UIResponder.self, #selector(getter: UIResponder.keyCommands))
+  let replacement = class_getInstanceMethod(UIResponder.self, #selector(getter: UIResponder._nuvio_keyCommands))
 
-  if let original = original, let replacement = replacement {
-    method_exchangeImplementations(original, replacement)
-    NSLog("[Nuvio] keyCommands swizzle installed")
+  guard let orig = original, let repl = replacement else {
+    NSLog("[Nuvio] ERROR: keyCommands swizzle failed - methods not found")
+    return
   }
+
+  method_exchangeImplementations(orig, repl)
+  swizzleInstalled = true
+  NSLog("[Nuvio] keyCommands swizzle installed on UIResponder")
 }
 
-extension UIView {
+extension UIResponder {
   @objc dynamic var _nuvio_keyCommands: [UIKeyCommand]? {
     if PlatformInfo.isPlayerActive {
-      return nil
+      return nil  // Suppress ALL keyCommands during playback
     }
-    // Calls the original (swizzled) implementation
+    // Call original implementation (method is swizzled, so this calls the real getter)
     return self._nuvio_keyCommands
   }
 }
@@ -77,9 +83,8 @@ class PlatformInfo: RCTEventEmitter {
   static var shared: PlatformInfo?
   private var hasListeners = false
 
-  /// True when the player is on screen. Toggled by DesktopPlayerOverlayView.
-  /// Controls: (1) menu rebuild to add/remove player shortcuts,
-  ///           (2) keyCommands swizzle to suppress KSPlayer's key handling.
+  /// True when the player is on screen. Set from JS via setPlayerActive().
+  /// Controls menu rebuild and keyCommands swizzle activation.
   static var isPlayerActive = false {
     didSet {
       #if targetEnvironment(macCatalyst)
@@ -120,6 +125,15 @@ class PlatformInfo: RCTEventEmitter {
     sendEvent(withName: "onKeyCommand", body: ["id": commandId])
   }
 
+  // ── JS-callable methods ──
+
+  /// Called from JS when the player mounts/unmounts.
+  /// Triggers menu rebuild and keyCommands swizzle activation.
+  @objc func setPlayerActive(_ active: Bool) {
+    PlatformInfo.isPlayerActive = active
+  }
+
+  /// Called from JS to toggle macOS native fullscreen.
   @objc func toggleFullscreen() {
     #if targetEnvironment(macCatalyst)
     DispatchQueue.main.async { toggleMacFullscreen() }
@@ -177,66 +191,22 @@ func toggleMacFullscreen() {
 }
 #endif
 
-// MARK: - DesktopPlayerOverlay (lifecycle + hover)
+// MARK: - DesktopPlayerOverlay (non-critical stub)
 //
-// Two jobs:
-// 1. Toggle isPlayerActive when mounted/unmounted (triggers menu rebuild
-//    and keyCommands swizzle activation).
-// 2. Detect mouse hover via UIHoverGestureRecognizer and emit events to JS.
-//
-// hitTest returns self for .hover events so the gesture recognizer fires,
-// but returns nil for all other events so touches pass through to the
-// click-to-play layer and control buttons below.
+// This native view is kept for backwards compatibility with the JS
+// requireNativeComponent call, but it does NOT work on Fabric and
+// is NOT relied upon for any functionality. All critical functions
+// use NativeModules method calls and JS Pressable instead.
 
 #if targetEnvironment(macCatalyst)
 class DesktopPlayerOverlayView: UIView {
   @objc var onMouseMove: RCTDirectEventBlock?
-  private var mouseIdleTimer: Timer?
-
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
-    isUserInteractionEnabled = true
-    addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(handleMouseMove(_:))))
   }
   required init?(coder: NSCoder) { fatalError() }
-
-  /// Return self for hover events so the gesture recognizer receives them.
-  /// Return nil for everything else so touches fall through to JS layers.
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    if let event = event, event.type == .hover {
-      return self.point(inside: point, with: event) ? self : nil
-    }
-    return nil
-  }
-
-  override func didMoveToWindow() {
-    super.didMoveToWindow()
-    PlatformInfo.isPlayerActive = (window != nil)
-  }
-
-  @objc private func handleMouseMove(_ r: UIHoverGestureRecognizer) {
-    switch r.state {
-    case .began, .changed:
-      PlatformInfo.shared?.emitKeyCommand("playerMouseMove")
-      resetMouseIdleTimer()
-    case .ended, .cancelled:
-      PlatformInfo.shared?.emitKeyCommand("playerMouseLeave")
-    default: break
-    }
-  }
-
-  private func resetMouseIdleTimer() {
-    mouseIdleTimer?.invalidate()
-    mouseIdleTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-      PlatformInfo.shared?.emitKeyCommand("playerMouseIdle")
-    }
-  }
-
-  deinit {
-    mouseIdleTimer?.invalidate()
-    PlatformInfo.isPlayerActive = false
-  }
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
 
 @objc(DesktopPlayerOverlayManager)
@@ -271,7 +241,7 @@ extension UIResponder {
   @objc func handleTab4()     { PlatformInfo.shared?.emitKeyCommand("tab4") }
   @objc func handleTab5()     { PlatformInfo.shared?.emitKeyCommand("tab5") }
 
-  // ── ESC (always active, context-dependent) ──
+  // ── ESC (always active) ──
   @objc func handleEscape() {
     if PlatformInfo.isPlayerActive && isMacFullscreen() {
       toggleMacFullscreen()

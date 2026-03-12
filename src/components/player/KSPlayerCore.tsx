@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useKeyCommands } from '../../hooks/useKeyboardShortcuts';
 import { isMacCatalyst } from '../../utils/platform';
-import DesktopPlayerOverlay from '../common/DesktopPlayerOverlay';
-import { View, StatusBar, StyleSheet, Animated, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StatusBar, StyleSheet, Animated, Dimensions, ActivityIndicator, NativeModules, Pressable } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
@@ -589,6 +588,18 @@ const KSPlayerCore: React.FC = () => {
     }, 2000);
   }, [navigation, currentTime, duration, traktAutosync]);
 
+  // ─── Desktop player lifecycle (Catalyst only) ──────────────────────
+  // Tells native side the player is active, which:
+  // 1. Triggers menu rebuild to add player keyboard shortcuts
+  // 2. Activates keyCommands swizzle to suppress KSPlayer's own key handling
+  useEffect(() => {
+    if (!isMacCatalyst) return;
+    NativeModules.PlatformInfo?.setPlayerActive(true);
+    return () => {
+      NativeModules.PlatformInfo?.setPlayerActive(false);
+    };
+  }, []);
+
   // ─── Desktop controls (Catalyst only) ────────────────────────────
   const previousVolumeRef = useRef(1.0);
 
@@ -606,10 +617,9 @@ const KSPlayerCore: React.FC = () => {
 
   // ─── Desktop key command handlers (Catalyst only) ─────────────────
   // Keyboard input goes through AppDelegate.buildMenu as hidden
-  // UIKeyCommand items. KSPlayer's own keyCommands are suppressed via
-  // runtime swizzle when isPlayerActive is true, preventing dual-firing.
-  // Fullscreen (F) and ESC-when-fullscreen are handled natively.
-  // Mouse hover (playerMouseMove/Idle/Leave) comes from native overlay.
+  // UIKeyCommand items (dynamic, only added when isPlayerActive).
+  // KSPlayer's own keyCommands are suppressed via UIResponder swizzle.
+  // Mouse hover is handled by JS Pressable onHoverIn/onHoverOut.
 
   const playerKeyHandlers = useCallback(() => {
     if (!isMacCatalyst) return {};
@@ -639,19 +649,11 @@ const KSPlayerCore: React.FC = () => {
           setVolumeState(previousVolumeRef.current);
         }
       },
-      // Mouse hover (native UIHoverGestureRecognizer on overlay)
-      playerMouseMove: () => showControlsForMouse(),
-      playerMouseIdle: () => {
-        if (!paused && showControls) hideControls();
-      },
-      playerMouseLeave: () => {
-        if (!paused && showControls) hideControls();
-      },
       // ESC (when not fullscreen) and Cmd+[ both close the player
       escape: () => handleClose(),
       back: () => handleClose(),
     };
-  }, [controls, handleClose, volume, paused, showControls, showControlsForMouse, hideControls]);
+  }, [controls, handleClose, volume, showControlsForMouse]);
 
   useKeyCommands(playerKeyHandlers());
 
@@ -915,20 +917,25 @@ const KSPlayerCore: React.FC = () => {
         />
       )}
 
-      {/* Lifecycle overlay: sets isPlayerActive flag (triggers menu rebuild + swizzle), hover detection */}
-      <DesktopPlayerOverlay />
-
-      {/* Desktop click-to-play surface.
-          zIndex 6: above video (0) and overlay (2), below controls (20).
-          Controls use pointerEvents="box-none" so taps on empty space fall through here.
-          Mouse hover is handled natively by the overlay's UIHoverGestureRecognizer. */}
+      {/* Desktop interaction surface (Catalyst only).
+          Pressable handles click (play/pause) and hover (show/hide controls).
+          zIndex 6: above video (0), below controls (20).
+          Controls use pointerEvents="box-none" so clicks on empty areas
+          fall through to this layer. */}
       {isMacCatalyst && isVideoLoaded && (
-        <View
+        <Pressable
           style={[StyleSheet.absoluteFill, { zIndex: 6 }]}
-          onStartShouldSetResponder={() => true}
-          onResponderRelease={() => {
+          onPress={() => {
             controls.togglePlayback();
             showControlsForMouse();
+          }}
+          onHoverIn={() => showControlsForMouse()}
+          onHoverOut={() => {
+            // Start auto-hide when mouse leaves the video area
+            if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+            controlsTimeout.current = setTimeout(() => {
+              if (!paused) hideControls();
+            }, 1500);
           }}
         />
       )}

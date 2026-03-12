@@ -758,7 +758,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   tabletLeftPanel: {
-    width: isMacCatalyst ? '35%' : '40%',
+    width: isMacCatalyst ? '40%' : '40%',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -820,7 +820,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
   tabletRightPanel: {
-    width: isMacCatalyst ? '65%' : '60%',
+    width: isMacCatalyst ? '60%' : '60%',
     flex: 1,
     paddingTop: Platform.OS === 'android' ? 60 : 20,
     zIndex: 2,

@@ -35,8 +35,8 @@ const SourceStreamItem: React.FC<{
   const hasSec = parsed.secondaryPills.length > 0;
 
   const pillStyle = (pill: Pill, tier: 'primary' | 'secondary') => ({
-    paddingHorizontal: isMacCatalyst ? 9 : 7,
-    paddingVertical: isMacCatalyst ? 3.5 : 2.5,
+    paddingHorizontal: isMacCatalyst ? 11 : 7,
+    paddingVertical: isMacCatalyst ? 4.5 : 2.5,
     borderRadius: 7,
     borderWidth: 1,
     backgroundColor: isSelected
@@ -48,7 +48,7 @@ const SourceStreamItem: React.FC<{
   });
 
   const pillTextStyle = (pill: Pill) => ({
-    fontSize: isMacCatalyst ? 11 : 9.5,
+    fontSize: isMacCatalyst ? 12 : 9.5,
     fontWeight: '700' as const,
     letterSpacing: 0.3,
     textTransform: 'uppercase' as const,
@@ -58,7 +58,7 @@ const SourceStreamItem: React.FC<{
   return (
     <TouchableOpacity
       style={{
-        padding: isMacCatalyst ? 16 : 10,
+        padding: isMacCatalyst ? 18 : 10,
         borderRadius: 12,
         backgroundColor: isSelected ? 'white' : 'rgba(255,255,255,0.05)',
         borderWidth: 1,
@@ -69,7 +69,7 @@ const SourceStreamItem: React.FC<{
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flex: 1, gap: isMacCatalyst ? 8 : 6 }}>
-          <Text style={{ color: isSelected ? '#000' : '#fff', fontWeight: '600', fontSize: isMacCatalyst ? 15.5 : 13 }} numberOfLines={1}>
+          <Text style={{ color: isSelected ? '#000' : '#fff', fontWeight: '600', fontSize: isMacCatalyst ? 17 : 13 }} numberOfLines={1}>
             {parsed.displayName}
           </Text>
           {(parsed.primaryPills.length > 0 || hasSec) && (

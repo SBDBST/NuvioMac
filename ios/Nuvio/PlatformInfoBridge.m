@@ -4,6 +4,7 @@
 
 @interface RCT_EXTERN_MODULE(PlatformInfo, RCTEventEmitter)
 RCT_EXTERN_METHOD(toggleFullscreen)
+RCT_EXTERN_METHOD(setPlayerActive:(BOOL)active)
 @end
 
 @interface RCT_EXTERN_MODULE(HoverViewManager, RCTViewManager)

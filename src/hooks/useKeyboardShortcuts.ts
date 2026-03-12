@@ -23,14 +23,12 @@ function getEmitter(): NativeEventEmitter | null {
 }
 
 type CommandId =
-  // Navigation (Cmd+key menu shortcuts)
+  // Navigation (Cmd+key menu shortcuts, always active)
   | 'search' | 'settings' | 'back' | 'escape'
   | 'tab1' | 'tab2' | 'tab3' | 'tab4' | 'tab5'
-  // Player (menu-based keyboard shortcuts, active when player is open)
+  // Player (menu shortcuts, active when player is open)
   | 'playerToggle' | 'playerSeekBack' | 'playerSeekForward'
-  | 'playerMute' | 'playerVolumeUp' | 'playerVolumeDown'
-  // Mouse (native hover fallback)
-  | 'playerMouseMove' | 'playerMouseIdle' | 'playerMouseLeave';
+  | 'playerMute' | 'playerVolumeUp' | 'playerVolumeDown';
 
 /**
  * Listen for a specific keyboard shortcut by command ID.
