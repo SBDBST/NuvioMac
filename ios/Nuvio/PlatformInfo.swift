@@ -176,6 +176,12 @@ class HoverViewManager: RCTViewManager {
 // MARK: - Fullscreen helpers
 
 #if targetEnvironment(macCatalyst)
+
+/// Cooldown to prevent fullscreen cycling during macOS animation (~700ms).
+/// Both the menu F handler and the JS fullscreen button call this.
+private var lastFullscreenToggle: TimeInterval = 0
+private let fullscreenCooldown: TimeInterval = 1.0
+
 func isMacFullscreen() -> Bool {
   guard let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
         let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject else { return false }
@@ -184,11 +190,19 @@ func isMacFullscreen() -> Bool {
 }
 
 func toggleMacFullscreen() {
+  let now = CACurrentMediaTime()
+  guard now - lastFullscreenToggle > fullscreenCooldown else {
+    nuvioLog("[Fullscreen] Cooldown active, ignoring toggle")
+    return
+  }
+  lastFullscreenToggle = now
+
   if let nsApp = NSClassFromString("NSApplication")?.value(forKeyPath: "sharedApplication") as? NSObject,
      let nsWindow = nsApp.value(forKey: "keyWindow") as? NSObject {
     nsWindow.perform(NSSelectorFromString("toggleFullScreen:"), with: nil)
   }
 }
+
 #endif
 
 // MARK: - DesktopPlayerOverlay (non-critical stub)

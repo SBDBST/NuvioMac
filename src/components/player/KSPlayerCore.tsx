@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useKeyCommands } from '../../hooks/useKeyboardShortcuts';
 import { isMacCatalyst } from '../../utils/platform';
-import { View, StatusBar, StyleSheet, Animated, Dimensions, ActivityIndicator, NativeModules, Pressable } from 'react-native';
+import { View, StatusBar, StyleSheet, Animated, Dimensions, ActivityIndicator, NativeModules } from 'react-native';
+// Use RNGH Pressable -- RN core Pressable onHoverIn/Out is not implemented on Fabric
+import { Pressable } from 'react-native-gesture-handler';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
