@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
-import { View, StyleSheet, Platform, Animated, ToastAndroid, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Platform, Animated, ToastAndroid, ActivityIndicator, AppState } from 'react-native';
 import { toast } from '@backpackapp-io/react-native-toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -55,9 +55,11 @@ import { MpvPlayerRef } from './android/MpvPlayer';
 // Utils
 import { logger } from '../../utils/logger';
 import { styles } from './utils/playerStyles';
-import { formatTime, isHlsStream, getHlsHeaders, defaultAndroidHeaders, parseSRT } from './utils/playerUtils';
+import { formatTime, isHlsStream, getHlsHeaders, defaultAndroidHeaders, parseSubtitle } from './utils/playerUtils';
 import { storageService } from '../../services/storageService';
 import stremioService from '../../services/stremioService';
+import { localScraperService } from '../../services/pluginService';
+import { TMDBService } from '../../services/tmdbService';
 import { WyzieSubtitle, SubtitleCue } from './utils/playerTypes';
 import { findBestSubtitleTrack, findBestAudioTrack } from './utils/trackSelectionUtils';
 import { buildExoAudioTrackName, buildExoSubtitleTrackName } from './android/components/VideoSurface';
@@ -75,7 +77,7 @@ const AndroidVideoPlayer: React.FC = () => {
   const {
     uri, title = 'Episode Name', season, episode, episodeTitle, quality, year,
     streamProvider, streamName, headers, id, type, episodeId, imdbId,
-    availableStreams: passedAvailableStreams, backdrop, groupedEpisodes
+    availableStreams: passedAvailableStreams, backdrop, groupedEpisodes, releaseDate
   } = route.params;
 
   // --- State & Custom Hooks ---
@@ -102,6 +104,12 @@ const AndroidVideoPlayer: React.FC = () => {
   // State to force unmount VideoSurface during stream transitions
   const [isTransitioningStream, setIsTransitioningStream] = useState(false);
 
+  const supportsPictureInPicture = Platform.OS === 'android' && Number(Platform.Version) >= 26;
+  const [isInPictureInPicture, setIsInPictureInPicture] = useState(false);
+  const [isPiPTransitionPending, setIsPiPTransitionPending] = useState(false);
+  const pipSupportLoggedRef = useRef<boolean | null>(null);
+  const pipAutoEntryStateRef = useRef<string>('');
+
   // Dual video engine state: ExoPlayer primary, MPV fallback
   // If videoPlayerEngine is 'mpv', always use MPV; otherwise use auto behavior
   const shouldUseMpvOnly = settings.videoPlayerEngine === 'mpv';
@@ -119,6 +127,16 @@ const AndroidVideoPlayer: React.FC = () => {
       setUseExoPlayer(false);
     }
   }, [settings.videoPlayerEngine]);
+
+  const autoEnterPipReason = useMemo(() => {
+    if (!supportsPictureInPicture) return 'unsupported_platform_or_api';
+    if (!useExoPlayer) return 'engine_mpv';
+    if (playerState.paused) return 'paused';
+    return 'enabled';
+  }, [supportsPictureInPicture, useExoPlayer, playerState.paused]);
+
+  const shouldAutoEnterPip = autoEnterPipReason === 'enabled';
+  const canShowPipButton = supportsPictureInPicture && useExoPlayer;
 
   // Subtitle addon state
   const [availableSubtitles, setAvailableSubtitles] = useState<WyzieSubtitle[]>([]);
@@ -171,6 +189,11 @@ const AndroidVideoPlayer: React.FC = () => {
 
   const metadataResult = useMetadata({ id: id || 'placeholder', type: (type as any) });
   const { metadata, cast } = Boolean(id && type) ? (metadataResult as any) : { metadata: null, cast: [] };
+
+  // For content with provider IDs (e.g. kitsu:123), imdbId from route params may be null at
+  // navigation time. useMetadata resolves it asynchronously via ARM + TMDB. Use that resolved
+  // value as a fallback so Trakt scrobbling and watched status use a real IMDb ID.
+  const resolvedImdbId: string | undefined = imdbId || (metadataResult as any).imdbId || undefined;
   const hasLogo = metadata && metadata.logo;
   const openingAnimation = useOpeningAnimation(backdrop, metadata);
 
@@ -194,14 +217,29 @@ const AndroidVideoPlayer: React.FC = () => {
     type: type === 'series' ? 'series' : 'movie',
     title: episodeTitle || title,
     year: year || 0,
-    imdbId: imdbId || '',
+    imdbId: resolvedImdbId || '',
     season: season,
     episode: episode,
     showTitle: title,
     showYear: year,
-    showImdbId: imdbId,
+    showImdbId: resolvedImdbId,
     episodeId: episodeId
   });
+
+  const currentMalId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+  const currentTmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+
+  // Calculate dayIndex for same-day releases
+  const currentDayIndex = useMemo(() => {
+    if (!releaseDate || !groupedEpisodes) return 0;
+    // Flatten groupedEpisodes to search for same-day releases
+    const allEpisodes = Object.values(groupedEpisodes).flat();
+    const sameDayEpisodes = allEpisodes
+      .filter(ep => ep.air_date === releaseDate)
+      .sort((a, b) => a.episode_number - b.episode_number);
+    const idx = sameDayEpisodes.findIndex(ep => ep.episode_number === episode);
+    return idx >= 0 ? idx : 0;
+  }, [releaseDate, groupedEpisodes, episode]);
 
   const watchProgress = useWatchProgress(
     id, type, episodeId,
@@ -210,7 +248,16 @@ const AndroidVideoPlayer: React.FC = () => {
     playerState.paused,
     traktAutosync,
     controlsHook.seekToTime,
-    currentStreamProvider
+    currentStreamProvider,
+    resolvedImdbId,
+    season,
+    episode,
+    releaseDate,
+    currentMalId,
+    currentDayIndex,
+    currentTmdbId,
+    isInPictureInPicture || isPiPTransitionPending,
+    metadata?.name
   );
 
   const gestureControls = usePlayerGestureControls({
@@ -225,12 +272,13 @@ const AndroidVideoPlayer: React.FC = () => {
   const nextEpisodeHook = useNextEpisode(type, season, episode, groupedEpisodes, (metadataResult as any)?.groupedEpisodes, episodeId);
 
   const { segments: skipIntervals, outroSegment } = useSkipSegments({
-    imdbId: imdbId || (id?.startsWith('tt') ? id : undefined),
+    imdbId: resolvedImdbId || (id?.startsWith('tt') ? id : undefined),
     type,
     season,
     episode,
     malId: (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id,
     kitsuId: id?.startsWith('kitsu:') ? id.split(':')[1] : undefined,
+    tmdbId: currentTmdbId,
     enabled: settings.skipIntroEnabled
   });
 
@@ -440,6 +488,10 @@ const AndroidVideoPlayer: React.FC = () => {
         }
       }, 300);
     }
+
+    if (videoDuration > 0) {
+      traktAutosync.handlePlaybackStart(0, videoDuration);
+    }
   }, [id, type, episodeId, playerState.isMounted, watchProgress.initialPosition, useExoPlayer]);
 
   const handleProgress = useCallback((data: any) => {
@@ -520,6 +572,77 @@ const AndroidVideoPlayer: React.FC = () => {
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] } as any);
   }, [navigation]);
+
+  useEffect(() => {
+    if (pipSupportLoggedRef.current === supportsPictureInPicture) return;
+    pipSupportLoggedRef.current = supportsPictureInPicture;
+    logger.info(`[PiP] Support ${supportsPictureInPicture ? 'enabled' : 'disabled'} (api=${String(Platform.Version)})`);
+  }, [supportsPictureInPicture]);
+
+  useEffect(() => {
+    if (pipAutoEntryStateRef.current === autoEnterPipReason) return;
+    pipAutoEntryStateRef.current = autoEnterPipReason;
+    if (autoEnterPipReason === 'enabled') {
+      logger.info('[PiP] Auto-entry enabled');
+    } else {
+      logger.info(`[PiP] Auto-entry disabled (${autoEnterPipReason})`);
+    }
+  }, [autoEnterPipReason]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState.match(/inactive|background/) && shouldAutoEnterPip) {
+        logger.info('[PiP] Background transition detected; waiting for PiP status callback');
+        setIsPiPTransitionPending(true);
+      }
+      if (nextAppState === 'active') {
+        setIsPiPTransitionPending(false);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [shouldAutoEnterPip]);
+
+  const handlePictureInPictureStatusChanged = useCallback((isInPip: boolean) => {
+    setIsInPictureInPicture((previous) => {
+      if (previous !== isInPip) {
+        logger.info(`[PiP] Status changed: ${isInPip ? 'entered' : 'exited'}`);
+      }
+      return isInPip;
+    });
+    if (isInPip) {
+      setIsPiPTransitionPending(false);
+      playerState.setShowControls(false);
+    } else {
+      setIsPiPTransitionPending(false);
+    }
+  }, [playerState.setShowControls]);
+
+  const handleEnterPictureInPicture = useCallback(() => {
+    if (!supportsPictureInPicture) {
+      logger.info('[PiP] Manual entry skipped: unsupported platform/API');
+      return;
+    }
+
+    if (!useExoPlayer) {
+      logger.info('[PiP] Manual entry blocked: MPV backend active');
+      ToastAndroid.show('PiP currently works with ExoPlayer only', ToastAndroid.SHORT);
+      return;
+    }
+
+    const playerRef = exoPlayerRef.current as any;
+    const enterPiPMethod = playerRef?.enterPictureInPicture ?? playerRef?.enterPictureInPictureMode;
+    if (typeof enterPiPMethod !== 'function') {
+      logger.warn('[PiP] Manual entry unavailable: Exo ref has no PiP method');
+      return;
+    }
+
+    logger.info('[PiP] Manual entry requested');
+    setIsPiPTransitionPending(true);
+    enterPiPMethod.call(playerRef);
+  }, [supportsPictureInPicture, useExoPlayer]);
 
   // Handle codec errors from ExoPlayer - silently switch to MPV
   const handleCodecError = useCallback(() => {
@@ -618,7 +741,7 @@ const AndroidVideoPlayer: React.FC = () => {
         id,
         type: 'series',
         episodeId: ep.stremioId || `${id}:${ep.season_number}:${ep.episode_number}`,
-        imdbId: imdbId ?? undefined,
+        imdbId: resolvedImdbId ?? undefined,
         backdrop: backdrop || undefined,
         availableStreams: {},
         groupedEpisodes: groupedEpisodes,
@@ -628,42 +751,86 @@ const AndroidVideoPlayer: React.FC = () => {
 
   // Subtitle addon fetching
   const fetchAvailableSubtitles = useCallback(async () => {
-    const targetImdbId = imdbId;
-    if (!targetImdbId) {
-      logger.warn('[AndroidVideoPlayer] No IMDB ID for subtitle fetch');
-      return;
-    }
-
+    const targetImdbId = resolvedImdbId;
+    
     setIsLoadingSubtitleList(true);
     try {
       const stremioType = type === 'series' ? 'series' : 'movie';
       const stremioVideoId = stremioType === 'series' && season && episode
         ? `series:${targetImdbId}:${season}:${episode}`
         : undefined;
-      const results = await stremioService.getSubtitles(stremioType, targetImdbId, stremioVideoId);
 
-      const subs: WyzieSubtitle[] = (results || []).map((sub: any) => ({
-        id: sub.id || `${sub.lang}-${sub.url}`,
-        url: sub.url,
-        flagUrl: '',
-        format: 'srt',
-        encoding: 'utf-8',
-        media: sub.addonName || sub.addon || '',
-        display: sub.lang || 'Unknown',
-        language: (sub.lang || '').toLowerCase(),
-        isHearingImpaired: false,
-        source: sub.addonName || sub.addon || 'Addon',
-      }));
+      // 1. Fetch from Stremio addons
+      const stremioPromise = stremioService.getSubtitles(stremioType, targetImdbId || '', stremioVideoId)
+        .then(results => (results || []).map((sub: any) => ({
+          id: sub.id || `${sub.lang}-${sub.url}`,
+          url: sub.url,
+          flagUrl: '',
+          format: 'srt',
+          encoding: 'utf-8',
+          media: sub.addonName || sub.addon || '',
+          display: sub.lang || 'Unknown',
+          language: (sub.lang || '').toLowerCase(),
+          isHearingImpaired: false,
+          source: sub.addonName || sub.addon || 'Addon',
+        })))
+        .catch(e => {
+          logger.error('[AndroidVideoPlayer] Error fetching Stremio subtitles', e);
+          return [];
+        });
 
-      setAvailableSubtitles(subs);
-      logger.info(`[AndroidVideoPlayer] Fetched ${subs.length} addon subtitles`);
-      // Auto-selection is now handled by useEffect that waits for internal tracks
+      // 2. Fetch from Local Plugins
+      const pluginPromise = (async () => {
+        try {
+          let tmdbIdStr: string | null = null;
+          
+          // Try to resolve TMDB ID
+          if (id && id.startsWith('tmdb:')) {
+            tmdbIdStr = id.split(':')[1];
+          } else if (targetImdbId) {
+            const resolvedId = await TMDBService.getInstance().findTMDBIdByIMDB(targetImdbId);
+            if (resolvedId) tmdbIdStr = resolvedId.toString();
+          }
+
+          if (tmdbIdStr) {
+            const results = await localScraperService.getSubtitles(
+              stremioType === 'series' ? 'tv' : 'movie',
+              tmdbIdStr,
+              season,
+              episode
+            );
+            
+            return results.map((sub: any) => ({
+              id: sub.url, // Use URL as ID for simple deduplication
+              url: sub.url,
+              flagUrl: '',
+              format: sub.format || 'srt',
+              encoding: 'utf-8',
+              media: sub.label || sub.addonName || 'Plugin',
+              display: sub.label || sub.lang || 'Plugin',
+              language: (sub.lang || 'en').toLowerCase(),
+              isHearingImpaired: false,
+              source: sub.addonName || 'Plugin'
+            }));
+          }
+        } catch (e) {
+          logger.warn('[AndroidVideoPlayer] Error fetching plugin subtitles', e);
+        }
+        return [];
+      })();
+
+      const [stremioSubs, pluginSubs] = await Promise.all([stremioPromise, pluginPromise]);
+      const allSubs = [...pluginSubs, ...stremioSubs];
+
+      setAvailableSubtitles(allSubs);
+      logger.info(`[AndroidVideoPlayer] Fetched ${allSubs.length} subtitles (${stremioSubs.length} Stremio, ${pluginSubs.length} Plugins)`);
+      
     } catch (e) {
-      logger.error('[AndroidVideoPlayer] Error fetching addon subtitles', e);
+      logger.error('[AndroidVideoPlayer] Error in fetchAvailableSubtitles', e);
     } finally {
       setIsLoadingSubtitleList(false);
     }
-  }, [imdbId, type, season, episode]);
+  }, [resolvedImdbId, type, season, episode, id]);
 
   const loadWyzieSubtitle = useCallback(async (subtitle: WyzieSubtitle) => {
     if (!subtitle.url) return;
@@ -682,7 +849,7 @@ const AndroidVideoPlayer: React.FC = () => {
       }
 
       // Parse subtitle file
-      const parsedCues = parseSRT(srtContent);
+      const parsedCues = parseSubtitle(srtContent, subtitle.url);
       setCustomSubtitles(parsedCues);
       setUseCustomSubtitles(true);
       setSelectedExternalSubtitleId(subtitle.id); // Track the selected external subtitle
@@ -780,7 +947,7 @@ const AndroidVideoPlayer: React.FC = () => {
                     addonId: currentStreamProvider
                   }, episodeId);
                 }
-                traktAutosync.handleProgressUpdate(data.currentTime, playerState.duration, true);
+                traktAutosync.handlePlaybackStart(data.currentTime, playerState.duration);
               }
             }}
             onEnd={() => {
@@ -841,6 +1008,8 @@ const AndroidVideoPlayer: React.FC = () => {
             // Dual video engine props
             useExoPlayer={useExoPlayer}
             onCodecError={handleCodecError}
+            enterPictureInPictureOnLeave={shouldAutoEnterPip}
+            onPictureInPictureStatusChanged={handlePictureInPictureStatusChanged}
             selectedAudioTrack={tracksHook.selectedAudioTrack as any || undefined}
             selectedTextTrack={memoizedSelectedTextTrack as any}
             // Subtitle Styling - pass to MPV for built-in subtitle customization
@@ -887,7 +1056,10 @@ const AndroidVideoPlayer: React.FC = () => {
           onLongPressActivated={speedControl.activateSpeedBoost}
           onLongPressEnd={speedControl.deactivateSpeedBoost}
           onLongPressStateChange={(e) => {
-            if (e.nativeEvent.state !== 4 && e.nativeEvent.state !== 2) speedControl.deactivateSpeedBoost();
+            const state = e.nativeEvent.state;
+            if (state === 5 || state === 3 || state === 1) { // END, CANCELLED, FAILED
+                speedControl.deactivateSpeedBoost();
+            }
           }}
           toggleControls={toggleControls}
           showControls={playerState.showControls}
@@ -957,8 +1129,10 @@ const AndroidVideoPlayer: React.FC = () => {
           playerBackend={useExoPlayer ? 'ExoPlayer' : 'MPV'}
           onSwitchToMPV={handleManualSwitchToMPV}
           useExoPlayer={useExoPlayer}
+          canEnterPictureInPicture={canShowPipButton}
+          onEnterPictureInPicture={handleEnterPictureInPicture}
           isBuffering={playerState.isBuffering}
-          imdbId={imdbId}
+          imdbId={resolvedImdbId}
         />
 
         <SpeedActivatedOverlay
@@ -984,7 +1158,7 @@ const AndroidVideoPlayer: React.FC = () => {
 
         {/* Parental Guide Overlay - Shows after controls first hide */}
         <ParentalGuideOverlay
-          imdbId={imdbId || (id?.startsWith('tt') ? id : undefined)}
+          imdbId={resolvedImdbId || (id?.startsWith('tt') ? id : undefined)}
           type={type as 'movie' | 'series'}
           season={season}
           episode={episode}
@@ -993,12 +1167,13 @@ const AndroidVideoPlayer: React.FC = () => {
 
         {/* Skip Intro Button - Shows during intro section of TV episodes */}
         <SkipIntroButton
-          imdbId={imdbId || (id?.startsWith('tt') ? id : undefined)}
+          imdbId={resolvedImdbId || (id?.startsWith('tt') ? id : undefined)}
           type={type || 'movie'}
           season={season}
           episode={episode}
           malId={(metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id}
           kitsuId={id?.startsWith('kitsu:') ? id.split(':')[1] : undefined}
+          releaseDate={releaseDate}
           skipIntervals={skipIntervals}
           currentTime={playerState.currentTime}
           onSkip={(endTime) => controlsHook.seekToTime(endTime)}
@@ -1139,7 +1314,7 @@ const AndroidVideoPlayer: React.FC = () => {
         visible={modals.showSubmitIntroModal}
         onClose={() => modals.setShowSubmitIntroModal(false)}
         currentTime={playerState.currentTime}
-        imdbId={imdbId}
+        imdbId={resolvedImdbId}
         season={season}
         episode={episode}
       />

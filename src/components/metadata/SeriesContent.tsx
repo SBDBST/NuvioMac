@@ -16,10 +16,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import { TraktService } from '../../services/traktService';
 import { watchedService } from '../../services/watchedService';
-import { logger } from '../../utils/logger';
 import { mmkvStorage } from '../../services/mmkvStorage';
+import { MalSync } from '../../services/mal/MalSync';
 
-// Enhanced responsive breakpoints for Seasons Section
+const noop = (..._args: unknown[]) => {};
+const logger = {
+  log: noop,
+  error: noop,
+  warn: noop,
+  info: noop,
+  debug: noop,
+};
+
+// ... other imports
 const BREAKPOINTS = {
   phone: 0,
   tablet: 768,
@@ -34,7 +43,15 @@ interface SeriesContentProps {
   onSeasonChange: (season: number) => void;
   onSelectEpisode: (episode: Episode) => void;
   groupedEpisodes?: { [seasonNumber: number]: Episode[] };
-  metadata?: { poster?: string; id?: string };
+  metadata?: { 
+    poster?: string; 
+    id?: string; 
+    name?: string;
+    mal_id?: number;
+    external_ids?: {
+      mal_id?: number;
+    }
+  };
   imdbId?: string; // IMDb ID for Trakt sync
 }
 
@@ -204,10 +221,10 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
         const savedMode = await mmkvStorage.getItem('global_season_view_mode');
         if (savedMode === 'text' || savedMode === 'posters') {
           setSeasonViewMode(savedMode);
-          if (__DEV__) console.log('[SeriesContent] Loaded global view mode:', savedMode);
+          if (__DEV__) logger.log('[SeriesContent] Loaded global view mode:', savedMode);
         }
       } catch (error) {
-        if (__DEV__) console.log('[SeriesContent] Error loading global view mode preference:', error);
+        if (__DEV__) logger.log('[SeriesContent] Error loading global view mode preference:', error);
       }
     };
 
@@ -231,7 +248,7 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
   const updateViewMode = (newMode: 'posters' | 'text') => {
     setSeasonViewMode(newMode);
     mmkvStorage.setItem('global_season_view_mode', newMode).catch((error: any) => {
-      if (__DEV__) console.log('[SeriesContent] Error saving global view mode preference:', error);
+      if (__DEV__) logger.log('[SeriesContent] Error saving global view mode preference:', error);
     });
   };
 
@@ -483,7 +500,7 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
   useEffect(() => {
     return () => {
       // Clear any pending timeouts
-      if (__DEV__) console.log('[SeriesContent] Component unmounted, cleaning up memory');
+      if (__DEV__) logger.log('[SeriesContent] Component unmounted, cleaning up memory');
 
       // Force garbage collection if available (development only)
       if (__DEV__ && global.gc) {
@@ -574,12 +591,31 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
 
     // 3. Background Async Operation
     const showImdbId = imdbId || metadata.id;
+    const malId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+    const tmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+    
+    // Calculate dayIndex for same-day releases
+    let dayIndex = 0;
+    if (episode.air_date) {
+      const sameDayEpisodes = episodes
+        .filter(ep => ep.air_date === episode.air_date)
+        .sort((a, b) => a.episode_number - b.episode_number);
+      dayIndex = sameDayEpisodes.findIndex(ep => ep.episode_number === episode.episode_number);
+      if (dayIndex < 0) dayIndex = 0;
+    }
+
     try {
       const result = await watchedService.markEpisodeAsWatched(
-        showImdbId,
-        metadata.id,
+        showImdbId || 'Anime',
+        metadata.id || '',
         episode.season_number,
-        episode.episode_number
+        episode.episode_number,
+        new Date(),
+        episode.air_date,
+        metadata?.name,
+        malId,
+        dayIndex,
+        tmdbId
       );
 
       // Reload to ensure consistency (e.g. if optimistic update was slightly off or for other effects)
@@ -615,12 +651,30 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
 
     // 3. Background Async Operation
     const showImdbId = imdbId || metadata.id;
+    const malId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+    const tmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+
+    // Calculate dayIndex for same-day releases
+    let dayIndex = 0;
+    if (episode.air_date) {
+      const sameDayEpisodes = episodes
+        .filter(ep => ep.air_date === episode.air_date)
+        .sort((a, b) => a.episode_number - b.episode_number);
+      dayIndex = sameDayEpisodes.findIndex(ep => ep.episode_number === episode.episode_number);
+      if (dayIndex < 0) dayIndex = 0;
+    }
+
     try {
       const result = await watchedService.unmarkEpisodeAsWatched(
-        showImdbId,
-        metadata.id,
+        showImdbId || '',
+        metadata.id || '',
         episode.season_number,
-        episode.episode_number
+        episode.episode_number,
+        episode.air_date,
+        metadata?.name,
+        malId,
+        dayIndex,
+        tmdbId
       );
 
       loadEpisodesProgress(); // Sync with source of truth
@@ -664,6 +718,24 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
         currentSeason,
         episodeNumbers
       );
+
+      // Sync to MAL (last episode of the season)
+      const malEnabled = mmkvStorage.getBoolean('mal_enabled') ?? true;
+      if (malEnabled && metadata?.name && episodeNumbers.length > 0) {
+          const lastEp = Math.max(...episodeNumbers);
+          const lastEpisodeData = seasonEpisodes.find(e => e.episode_number === lastEp);
+          const totalEpisodes = Object.values(groupedEpisodes).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+          
+          MalSync.scrobbleEpisode(
+              metadata.name, 
+              lastEp, 
+              totalEpisodes, 
+              'series', 
+              currentSeason, 
+              imdbId,
+              lastEpisodeData?.air_date // Pass release date for accuracy
+          );
+      }
 
       // Re-sync with source of truth
       loadEpisodesProgress();
@@ -715,12 +787,23 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
 
     // 3. Background Async Operation
     const showImdbId = imdbId || metadata.id;
+    const malId = (metadata as any)?.mal_id || (metadata as any)?.external_ids?.mal_id;
+    const tmdbId = (metadata as any)?.tmdbId || (metadata as any)?.external_ids?.tmdb_id;
+
+    const lastEp = Math.max(...episodeNumbers);
+    const lastEpisodeData = seasonEpisodes.find(e => e.episode_number === lastEp);
+
     try {
       const result = await watchedService.unmarkSeasonAsWatched(
-        showImdbId,
-        metadata.id,
+        showImdbId || '',
+        metadata.id || '',
         currentSeason,
-        episodeNumbers
+        episodeNumbers,
+        lastEpisodeData?.air_date,
+        metadata?.name,
+        malId,
+        0, // dayIndex (assuming 0 for season batch unmarking)
+        tmdbId
       );
 
       // Re-sync
@@ -809,7 +892,7 @@ const SeriesContentComponent: React.FC<SeriesContentProps> = ({
             onPress={() => {
               const newMode = seasonViewMode === 'posters' ? 'text' : 'posters';
               updateViewMode(newMode);
-              if (__DEV__) console.log('[SeriesContent] View mode changed to:', newMode, 'Current ref value:', seasonViewMode);
+              if (__DEV__) logger.log('[SeriesContent] View mode changed to:', newMode, 'Current ref value:', seasonViewMode);
             }}
             activeOpacity={0.7}
           >

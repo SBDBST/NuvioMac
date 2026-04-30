@@ -28,7 +28,7 @@ const SyncSettingsScreen: React.FC = () => {
   const isTablet = width >= 768;
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAccount();
+  const { signOut } = useAccount();
   const { isAuthenticated: traktAuthenticated } = useTraktContext();
   const { isAuthenticated: simklAuthenticated } = useSimklContext();
 
@@ -42,6 +42,7 @@ const SyncSettingsScreen: React.FC = () => {
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
   const [alertActions, setAlertActions] = useState<Array<{ label: string; onPress: () => void; style?: object }>>([]);
+  const cloudConfigured = supabaseSyncService.isConfigured();
 
   const openAlert = useCallback(
     (title: string, message: string, actions?: Array<{ label: string; onPress: () => void; style?: object }>) => {
@@ -67,7 +68,7 @@ const SyncSettingsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [openAlert]);
+  }, [openAlert, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,10 +77,10 @@ const SyncSettingsScreen: React.FC = () => {
   );
 
   const authLabel = useMemo(() => {
-    if (!supabaseSyncService.isConfigured()) return t('settings.cloud_sync.auth.not_configured');
+    if (!cloudConfigured) return t('settings.cloud_sync.auth.not_configured');
     if (!sessionUser) return t('settings.cloud_sync.auth.not_authenticated');
     return `${t('settings.cloud_sync.auth.email_session')} ${sessionUser.email ? `(${sessionUser.email})` : ''}`;
-  }, [sessionUser]);
+  }, [cloudConfigured, sessionUser, t]);
 
   const statItems = useMemo(() => {
     if (!remoteStats) return [];
@@ -90,8 +91,8 @@ const SyncSettingsScreen: React.FC = () => {
       { label: t('settings.cloud_sync.stats.library_items'), value: remoteStats.libraryItems },
       { label: t('settings.cloud_sync.stats.watched_items'), value: remoteStats.watchedItems },
     ];
-  }, [remoteStats]);
-  const isSignedIn = Boolean(user);
+  }, [remoteStats, t]);
+  const isSignedIn = Boolean(sessionUser);
   const externalSyncServices = useMemo(
     () => [
       traktAuthenticated ? 'Trakt' : null,
@@ -133,7 +134,7 @@ const SyncSettingsScreen: React.FC = () => {
       await signOut();
       await loadSyncState();
     } catch (error: any) {
-      openAlert(t('settings.cloud_sync.alerts.sign_out_failed_title'), error?.message || t('settings.cloud_sync.alerts.sign_out_failed_msg'));
+      openAlert(t('settings.cloud_sync.alerts.sign_out_failed_title'), error?.message || t('settings.cloud_sync.alerts.sign_out_failed'));
     } finally {
       setSyncCodeLoading(false);
     }
@@ -149,139 +150,102 @@ const SyncSettingsScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.headerActions} />
       </View>
-      <Text style={[styles.screenTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.title')}</Text>
 
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={currentTheme.colors.primary} size="large" />
         </View>
       ) : (
-        <>
+        <ScrollView contentContainerStyle={[styles.content, isTablet ? styles.contentTablet : null, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={[styles.summaryCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="cloud-done" size={18} color={currentTheme.colors.highEmphasis} />
+              <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.title')}</Text>
+            </View>
+            <Text style={[styles.summaryTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.hero_title')}</Text>
+            <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
+              {t('settings.cloud_sync.hero_subtitle')}
+            </Text>
 
-          <ScrollView contentContainerStyle={[styles.content, isTablet ? styles.contentTablet : null, { paddingBottom: insets.bottom + 24 }]}>
-            <View style={[styles.heroCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-              <View style={styles.heroTopRow}>
-                <View style={styles.heroTitleWrap}>
-                  <Text style={[styles.heroTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.hero_title')}</Text>
-                  <Text style={[styles.heroSubtitle, { color: currentTheme.colors.mediumEmphasis }]}>
-                    {t('settings.cloud_sync.hero_subtitle')}
+            <View style={styles.summaryStack}>
+              <View style={[styles.infoRow, { backgroundColor: currentTheme.colors.darkBackground, borderColor: currentTheme.colors.elevation2 }]}>
+                <MaterialIcons
+                  name={externalSyncActive ? 'info-outline' : 'sync'}
+                  size={18}
+                  color={currentTheme.colors.highEmphasis}
+                />
+                <Text style={[styles.infoText, { color: currentTheme.colors.mediumEmphasis }]}>
+                  {externalSyncActive
+                    ? t('settings.cloud_sync.external_sync.active_msg', {
+                      services: externalSyncServices.join(' + ')
+                    })
+                    : t('settings.cloud_sync.external_sync.inactive_msg')}
+                </Text>
+              </View>
+            </View>
+
+            {!cloudConfigured && (
+              <Text style={[styles.warning, { color: '#ffb454' }]}>
+                {t('settings.cloud_sync.pre_auth.env_warning')}
+              </Text>
+            )}
+          </View>
+
+          {!isSignedIn ? (
+            <View style={[styles.card, styles.preAuthCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
+              <View style={styles.sectionHeader}>
+                <MaterialIcons name="sync-lock" size={18} color={currentTheme.colors.highEmphasis} />
+                <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.pre_auth.title')}</Text>
+              </View>
+              <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
+                {t('settings.cloud_sync.pre_auth.description')}
+              </Text>
+              <View style={styles.preAuthList}>
+                <Text style={[styles.preAuthItem, { color: currentTheme.colors.mediumEmphasis }]}>{t('settings.cloud_sync.pre_auth.point_1')}</Text>
+                <Text style={[styles.preAuthItem, { color: currentTheme.colors.mediumEmphasis }]}>{t('settings.cloud_sync.pre_auth.point_2')}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.button, styles.fullWidthButton, { backgroundColor: currentTheme.colors.primary }]}
+                onPress={() => navigation.navigate('Account')}
+              >
+                <Text style={styles.buttonText}>{t('settings.cloud_sync.actions.sign_in_up')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={[styles.sectionGrid, isTablet ? styles.sectionGridTablet : null]}>
+                <View style={[styles.card, styles.gridCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
+                  <View style={styles.sectionHeader}>
+                    <MaterialIcons name="person-outline" size={18} color={currentTheme.colors.highEmphasis} />
+                    <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.auth.account')}</Text>
+                  </View>
+                  <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>{authLabel}</Text>
+                  <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
+                    {t('settings.cloud_sync.auth.effective_owner', { id: ownerId || 'Unavailable' })}
                   </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={[styles.noteCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-              <View style={styles.sectionHeader}>
-                <MaterialIcons name="info-outline" size={18} color={currentTheme.colors.highEmphasis} />
-                <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.external_sync.title')}</Text>
-              </View>
-              <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
-                {externalSyncActive
-                  ? t('settings.cloud_sync.external_sync.active_msg', {
-                    services: externalSyncServices.join(' + ')
-                  })
-                  : t('settings.cloud_sync.external_sync.inactive_msg')}
-              </Text>
-            </View>
-
-            <View style={[styles.card, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-              <View style={styles.sectionHeader}>
-                <MaterialIcons name="person-outline" size={18} color={currentTheme.colors.highEmphasis} />
-                <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.auth.account')}</Text>
-              </View>
-              <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
-                {user?.email
-                  ? t('settings.cloud_sync.auth.signed_in_as', { email: user.email })
-                  : t('settings.cloud_sync.auth.not_signed_in')
-                }
-              </Text>
-              <View style={styles.buttonRow}>
-                {!isSignedIn ? (
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: currentTheme.colors.primary }]}
-                    onPress={() => navigation.navigate('Account')}
-                  >
-                    <Text style={styles.buttonText}>{t('settings.cloud_sync.actions.sign_in_up')}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
+                  <View style={[styles.buttonRow, isTablet ? styles.buttonRowTablet : styles.buttonColumn]}>
                     <TouchableOpacity
-                      style={[styles.button, { backgroundColor: currentTheme.colors.primary }]}
+                      style={[styles.button, isTablet && styles.buttonFlex, { backgroundColor: currentTheme.colors.primary }]}
                       onPress={() => navigation.navigate('AccountManage')}
                     >
                       <Text style={styles.buttonText}>{t('settings.cloud_sync.actions.manage_account')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       disabled={syncCodeLoading}
-                      style={[styles.button, { backgroundColor: currentTheme.colors.elevation2 }]}
+                      style={[
+                        styles.button,
+                        isTablet && styles.buttonFlex,
+                        { backgroundColor: currentTheme.colors.elevation2 },
+                        syncCodeLoading && styles.buttonDisabled,
+                      ]}
                       onPress={handleSignOut}
                     >
                       <Text style={styles.buttonText}>{t('settings.cloud_sync.actions.sign_out')}</Text>
                     </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </View>
-
-            {!isSignedIn ? (
-              <View style={[styles.card, styles.preAuthCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-                <View style={styles.sectionHeader}>
-                  <MaterialIcons name="sync-lock" size={18} color={currentTheme.colors.highEmphasis} />
-                  <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.pre_auth.title')}</Text>
-                </View>
-                <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
-                  {t('settings.cloud_sync.pre_auth.description')}
-                </Text>
-                <View style={styles.preAuthList}>
-                  <Text style={[styles.preAuthItem, { color: currentTheme.colors.mediumEmphasis }]}>{t('settings.cloud_sync.pre_auth.point_1')}</Text>
-                  <Text style={[styles.preAuthItem, { color: currentTheme.colors.mediumEmphasis }]}>{t('settings.cloud_sync.pre_auth.point_2')}</Text>
-                </View>
-                {!supabaseSyncService.isConfigured() && (
-                  <Text style={[styles.warning, { color: '#ffb454' }]}>
-                    {t('settings.cloud_sync.pre_auth.env_warning')}
-                  </Text>
-                )}
-              </View>
-            ) : (
-              <>
-                <View style={[styles.card, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-                  <View style={styles.sectionHeader}>
-                    <MaterialIcons name="link" size={18} color={currentTheme.colors.highEmphasis} />
-                    <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.connection')}</Text>
                   </View>
-                  <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>{authLabel}</Text>
-                  <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
-                    {t('settings.cloud_sync.auth.effective_owner', { id: ownerId || 'Unavailable' })}
-                  </Text>
-                  {!supabaseSyncService.isConfigured() && (
-                    <Text style={[styles.warning, { color: '#ffb454' }]}>
-                      {t('settings.cloud_sync.pre_auth.env_warning')}
-                    </Text>
-                  )}
                 </View>
 
-                <View style={[styles.card, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
-                  <View style={styles.sectionHeader}>
-                    <MaterialIcons name="storage" size={18} color={currentTheme.colors.highEmphasis} />
-                    <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.stats.title')}</Text>
-                  </View>
-                  {!remoteStats ? (
-                    <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
-                      {t('settings.cloud_sync.stats.signin_required')}
-                    </Text>
-                  ) : (
-                    <View style={styles.statsGrid}>
-                      {statItems.map((item) => (
-                        <View key={item.label} style={[styles.statTile, { backgroundColor: currentTheme.colors.darkBackground, borderColor: currentTheme.colors.elevation2 }]}>
-                          <Text style={[styles.statValue, { color: currentTheme.colors.highEmphasis }]}>{item.value}</Text>
-                          <Text style={[styles.statLabel, { color: currentTheme.colors.mediumEmphasis }]}>{item.label}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                <View style={[styles.card, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
+                <View style={[styles.card, styles.gridCard, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
                   <View style={styles.sectionHeader}>
                     <MaterialIcons name="sync" size={18} color={currentTheme.colors.highEmphasis} />
                     <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.actions.title')}</Text>
@@ -289,14 +253,14 @@ const SyncSettingsScreen: React.FC = () => {
                   <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
                     {t('settings.cloud_sync.actions.description')}
                   </Text>
-                  <View style={styles.buttonRow}>
+                  <View style={styles.buttonColumn}>
                     <TouchableOpacity
-                      disabled={syncCodeLoading || !supabaseSyncService.isConfigured()}
+                      disabled={syncCodeLoading || !cloudConfigured}
                       style={[
                         styles.button,
                         styles.primaryButton,
                         { backgroundColor: currentTheme.colors.primary },
-                        (syncCodeLoading || !supabaseSyncService.isConfigured()) && styles.buttonDisabled,
+                        (syncCodeLoading || !cloudConfigured) && styles.buttonDisabled,
                       ]}
                       onPress={handleManualSync}
                     >
@@ -307,12 +271,12 @@ const SyncSettingsScreen: React.FC = () => {
                       )}
                     </TouchableOpacity>
                     <TouchableOpacity
-                      disabled={syncCodeLoading || !supabaseSyncService.isConfigured()}
+                      disabled={syncCodeLoading || !cloudConfigured}
                       style={[
                         styles.button,
                         styles.secondaryButton,
                         { backgroundColor: currentTheme.colors.elevation2, borderColor: currentTheme.colors.elevation2 },
-                        (syncCodeLoading || !supabaseSyncService.isConfigured()) && styles.buttonDisabled,
+                        (syncCodeLoading || !cloudConfigured) && styles.buttonDisabled,
                       ]}
                       onPress={handleUploadLocalData}
                     >
@@ -320,10 +284,34 @@ const SyncSettingsScreen: React.FC = () => {
                     </TouchableOpacity>
                   </View>
                 </View>
-              </>
-            )}
-          </ScrollView>
-        </>
+              </View>
+
+              <View style={[styles.card, { backgroundColor: currentTheme.colors.elevation1, borderColor: currentTheme.colors.elevation2 }]}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="storage" size={18} color={currentTheme.colors.highEmphasis} />
+                  <Text style={[styles.cardTitle, { color: currentTheme.colors.highEmphasis }]}>{t('settings.cloud_sync.stats.title')}</Text>
+                </View>
+                {!remoteStats ? (
+                  <Text style={[styles.cardText, { color: currentTheme.colors.mediumEmphasis }]}>
+                    {t('settings.cloud_sync.stats.signin_required')}
+                  </Text>
+                ) : (
+                  <View style={styles.statsGrid}>
+                    {statItems.map((item) => (
+                      <View
+                        key={item.label}
+                        style={[styles.statTile, { backgroundColor: currentTheme.colors.darkBackground, borderColor: currentTheme.colors.elevation2 }]}
+                      >
+                        <Text style={[styles.statValue, { color: currentTheme.colors.highEmphasis }]}>{item.value}</Text>
+                        <Text style={[styles.statLabel, { color: currentTheme.colors.mediumEmphasis }]}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
       )}
 
       <CustomAlert
@@ -366,13 +354,6 @@ const styles = StyleSheet.create({
   headerActions: {
     minWidth: 32,
   },
-  screenTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 10,
-  },
   content: {
     padding: 16,
     gap: 14,
@@ -382,27 +363,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 980,
   },
-  heroCard: {
+  summaryCard: {
     borderWidth: 1,
     borderRadius: 16,
-    padding: 16,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 18,
     gap: 12,
   },
-  heroTitleWrap: {
-    flex: 1,
-  },
-  heroTitle: {
-    fontSize: 20,
+  summaryTitle: {
+    fontSize: 24,
     fontWeight: '800',
-    marginBottom: 4,
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   card: {
     borderWidth: 1,
@@ -410,14 +379,18 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
-  noteCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 8,
-  },
   preAuthCard: {
     gap: 12,
+  },
+  sectionGrid: {
+    gap: 14,
+  },
+  sectionGridTablet: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  gridCard: {
+    flex: 1,
   },
   preAuthList: {
     gap: 6,
@@ -440,9 +413,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  summaryStack: {
+    gap: 10,
+  },
+  infoRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   warning: {
     fontSize: 12,
-    marginTop: 4,
+    lineHeight: 18,
   },
   statsGrid: {
     marginTop: 2,
@@ -454,11 +444,11 @@ const styles = StyleSheet.create({
     width: '48%',
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     marginBottom: 2,
   },
@@ -469,14 +459,27 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: 10,
+    flexWrap: 'wrap',
+  },
+  buttonRowTablet: {
+    flexDirection: 'row',
+  },
+  buttonColumn: {
+    flexDirection: 'column',
+    gap: 10,
   },
   button: {
-    flex: 1,
     borderRadius: 10,
     minHeight: 42,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
+  },
+  buttonFlex: {
+    flex: 1,
+  },
+  fullWidthButton: {
+    width: '100%',
   },
   primaryButton: {
     borderWidth: 0,

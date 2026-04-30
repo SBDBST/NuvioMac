@@ -172,7 +172,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // AI
   aiChatEnabled: false,
   // Metadata enrichment
-  enrichMetadataWithTMDB: true,
+  enrichMetadataWithTMDB: false,
   useTmdbLocalizedMetadata: false,
   // Granular TMDB enrichment controls (all enabled by default for backward compatibility)
   tmdbEnrichCast: true,

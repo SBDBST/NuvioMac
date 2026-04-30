@@ -54,9 +54,10 @@ import { useTrailer } from '../../contexts/TrailerContext';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { TMDBService } from '../../services/tmdbService';
-import TrailerService from '../../services/trailerService';
+import TrailerService, { TrailerPlaybackSource } from '../../services/trailerService';
 import TrailerPlayer from '../video/TrailerPlayer';
 import { HERO_HEIGHT, SCREEN_WIDTH as width, IS_TABLET as isTablet } from '../../constants/dimensions';
+import PlayerPlayIconBlack from '../../../assets/player-icons/ic_player_play_black.svg';
 
 const { height } = Dimensions.get('window');
 
@@ -335,7 +336,7 @@ const ActionButtons = memo(({
     return isWatched ? t('metadata.play') : playButtonText;
   }, [isWatched, playButtonText, type, watchProgress, groupedEpisodes]);
 
-  // Count additional buttons (excluding Play and Save) - AI Chat no longer counted
+  // Count additional buttons (AI Chat removed - now in top right corner)
   const hasTraktCollection = isAuthenticated;
   const hasRatings = type === 'series';
 
@@ -355,16 +356,19 @@ const ActionButtons = memo(({
           onPress={handleShowStreams}
           activeOpacity={0.85}
         >
-          <MaterialIcons
-            name={(() => {
-              if (isWatched) {
-                return type === 'movie' ? 'replay' : 'play-arrow';
-              }
-              return playButtonText === 'Resume' ? 'play-circle-outline' : 'play-arrow';
-            })()}
-            size={isTablet ? 28 : 24}
-            color={isWatched && type === 'movie' ? "#fff" : "#000"}
-          />
+          {isWatched && type === 'movie' ? (
+            <MaterialIcons
+              name="replay"
+              size={isTablet ? 28 : 24}
+              color="#fff"
+            />
+          ) : (
+            <PlayerPlayIconBlack
+              width={isTablet ? 28 : 24}
+              height={isTablet ? 28 : 24}
+              style={{ transform: [{ scale: isTablet ? 0.85 : 0.79 }] }}
+            />
+          )}
           <Text style={[playButtonTextStyle, isTablet && styles.tabletPlayButtonText]}>{finalPlayButtonText}</Text>
         </TouchableOpacity>
 
@@ -878,7 +882,7 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
   // Image loading state with optimized management
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
+  const [trailerSource, setTrailerSource] = useState<TrailerPlaybackSource | null>(null);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [trailerError, setTrailerError] = useState(false);
   // Use persistent setting instead of local state
@@ -1188,12 +1192,12 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
 
           logger.info('HeroSection', `Extracting stream for videoId: ${pick.key} (${metadata.name})`);
 
-          const url = await TrailerService.getTrailerFromVideoId(pick.key, metadata.name);
+          const source = await TrailerService.getTrailerPlaybackSourceFromVideoId(pick.key, metadata.name);
 
           if (!alive) return;
 
-          if (url) {
-            setTrailerUrl(url);
+          if (source) {
+            setTrailerSource(source);
             logger.info('HeroSection', `Trailer loaded for ${metadata.name}`);
           } else {
             logger.info('HeroSection', `No stream extracted for ${metadata.name}`);
@@ -1508,7 +1512,7 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
       try {
         setTrailerReady(false);
         setTrailerPreloaded(false);
-        setTrailerUrl(null);
+        setTrailerSource(null);
         trailerOpacity.value = 0;
         thumbnailOpacity.value = 1;
       } catch (_e) { }
@@ -1614,14 +1618,15 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
         )}
 
         {/* Single trailer player - starts hidden (opacity 0), fades in when ready */}
-        {shouldLoadSecondaryData && settings?.showTrailers && trailerUrl && !trailerLoading && !trailerError && (
+        {shouldLoadSecondaryData && settings?.showTrailers && trailerSource?.videoUrl && !trailerLoading && !trailerError && (
           <Animated.View style={[staticStyles.absoluteFill, {
             opacity: trailerOpacity
           }, trailerParallaxStyle]}>
             <TrailerPlayer
-              key={`trailer-${trailerUrl}`}
+              key={`trailer-${trailerSource.videoUrl}-${trailerSource.audioUrl ?? 'no-audio'}`}
               ref={trailerVideoRef}
-              trailerUrl={trailerUrl}
+              trailerUrl={trailerSource.videoUrl}
+              audioUrl={trailerSource.audioUrl}
               autoPlay={globalTrailerPlaying}
               muted={trailerMuted}
               style={staticStyles.absoluteFill}
@@ -1641,7 +1646,7 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
         )}
 
         {/* Trailer control buttons (unmute and fullscreen) */}
-        {settings?.showTrailers && trailerReady && trailerUrl && (
+        {settings?.showTrailers && trailerReady && trailerSource?.videoUrl && (
           <Animated.View style={{
             position: 'absolute',
             top: Platform.OS === 'android' ? 40 : 50,
@@ -1750,7 +1755,7 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
         )}
 
         {/* AI Chat button (when trailers are disabled) */}
-        {settings?.aiChatEnabled && !(settings?.showTrailers && trailerReady && trailerUrl) && (
+        {settings?.aiChatEnabled && !(settings?.showTrailers && trailerReady && trailerSource?.videoUrl) && (
           <Animated.View style={{
             position: 'absolute',
             top: Platform.OS === 'android' ? 40 : 50,
@@ -1882,25 +1887,25 @@ const HeroSection: React.FC<HeroSectionProps> = memo(({
             {/* Optimized Action Buttons */}
             <ActionButtons
               handleShowStreams={handleShowStreams}
-              toggleLibrary={handleToggleLibrary}
-              inLibrary={inLibrary}
-              type={type}
-              id={id}
-              navigation={navigation}
-              playButtonText={playButtonText}
-              animatedStyle={buttonsAnimatedStyle}
-              isWatched={isWatched}
-              watchProgress={watchProgress}
-              groupedEpisodes={groupedEpisodes}
-              metadata={metadata}
-              settings={settings}
-              // Trakt integration props
-              isAuthenticated={isAuthenticated}
-              isInWatchlist={isInWatchlist}
-              isInCollection={isInCollection}
-              onToggleWatchlist={onToggleWatchlist}
-              onToggleCollection={onToggleCollection}
-            />
+                toggleLibrary={handleToggleLibrary}
+                inLibrary={inLibrary}
+                type={type}
+                id={id}
+                navigation={navigation}
+                playButtonText={playButtonText}
+                animatedStyle={buttonsAnimatedStyle}
+                isWatched={isWatched}
+                watchProgress={watchProgress}
+                groupedEpisodes={groupedEpisodes}
+                metadata={metadata}
+                settings={settings}
+                // Trakt integration props
+                isAuthenticated={isAuthenticated}
+                isInWatchlist={isInWatchlist}
+                isInCollection={isInCollection}
+                onToggleWatchlist={onToggleWatchlist}
+                onToggleCollection={onToggleCollection}
+              />
           </View>
         </LinearGradient>
       </Animated.View>

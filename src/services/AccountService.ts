@@ -36,6 +36,18 @@ class AccountService {
     await mmkvStorage.setItem(USER_SCOPE_KEY, 'local');
   }
 
+  private async loadPersistedUser(): Promise<AuthUser | null> {
+    const userData = await mmkvStorage.getItem(USER_DATA_KEY);
+    if (!userData) return null;
+
+    try {
+      return JSON.parse(userData);
+    } catch {
+      await mmkvStorage.removeItem(USER_DATA_KEY);
+      return null;
+    }
+  }
+
   async signUpWithEmail(email: string, password: string): Promise<{ user?: AuthUser; error?: string }> {
     const result = await supabaseSyncService.signUpWithEmail(email, password);
     if (result.error) {
@@ -91,13 +103,21 @@ class AccountService {
       const sessionUser = supabaseSyncService.getCurrentSessionUser();
       if (sessionUser) {
         const mapped = this.mapSupabaseUser(sessionUser);
-        await this.persistUser(mapped);
-        return mapped;
+        const persisted = await this.loadPersistedUser();
+        const merged: AuthUser = persisted?.id === mapped.id
+          ? {
+              ...mapped,
+              displayName: persisted.displayName ?? mapped.displayName,
+              avatarUrl: persisted.avatarUrl ?? mapped.avatarUrl,
+            }
+          : mapped;
+
+        await this.persistUser(merged);
+        return merged;
       }
 
-      const userData = await mmkvStorage.getItem(USER_DATA_KEY);
-      if (!userData) return null;
-      return JSON.parse(userData);
+      await mmkvStorage.removeItem(USER_DATA_KEY);
+      return null;
     } catch {
       return null;
     }

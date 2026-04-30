@@ -42,6 +42,7 @@ import { TraktLoadingSpinner } from '../components/common/TraktLoadingSpinner';
 import { useSettings } from '../hooks/useSettings';
 import { useTranslation } from 'react-i18next';
 import { useScrollToTop } from '../contexts/ScrollToTopContext';
+import { TMDBService } from '../services/tmdbService';
 
 interface LibraryItem extends StreamingContent {
   progress?: number;
@@ -75,6 +76,7 @@ interface TraktFolder {
 }
 
 const ANDROID_STATUSBAR_HEIGHT = StatusBar.currentHeight || 0;
+const TRAKT_LIBRARY_SYNC_MODE_KEY = 'trakt_library_sync_mode';
 
 function getGridLayout(screenWidth: number): { numColumns: number; itemWidth: number } {
   const horizontalPadding = 26;
@@ -88,8 +90,6 @@ function getGridLayout(screenWidth: number): { numColumns: number; itemWidth: nu
   const itemWidth = Math.floor(available / numColumns);
   return { numColumns, itemWidth };
 }
-
-import { TMDBService } from '../services/tmdbService';
 
 const TraktItem = React.memo(({
   item,
@@ -124,10 +124,6 @@ const TraktItem = React.memo(({
 
           if (item.imdbId) {
             tmdbId = await tmdbService.findTMDBIdByIMDB(item.imdbId);
-          }
-
-          if (!tmdbId && item.traktId) {
-
           }
 
           if (tmdbId) {
@@ -250,6 +246,10 @@ const SkeletonLoader = () => {
   );
 };
 
+import { MalApiService, MalSync, MalAnimeNode } from '../services/mal';
+
+// ... other imports
+
 const LibraryScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -258,8 +258,12 @@ const LibraryScreen = () => {
   const { numColumns, itemWidth } = useMemo(() => getGridLayout(width), [width]);
   const [loading, setLoading] = useState(true);
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
-  const [filter, setFilter] = useState<'trakt' | 'simkl' | 'movies' | 'series'>('movies');
+  const [filter, setFilter] = useState<'trakt' | 'simkl' | 'movies' | 'series' | 'mal'>('movies');
   const [showTraktContent, setShowTraktContent] = useState(false);
+  const [malList, setMalMalList] = useState<MalAnimeNode[]>([]);
+  const [malLoading, setMalLoading] = useState(false);
+  const [malOffset, setMalOffset] = useState(0);
+  const [hasMoreMal, setHasMoreMal] = useState(true);
   const [selectedTraktFolder, setSelectedTraktFolder] = useState<string | null>(null);
   const [showSimklContent, setShowSimklContent] = useState(false);
   const [selectedSimklFolder, setSelectedSimklFolder] = useState<string | null>(null);
@@ -270,6 +274,9 @@ const LibraryScreen = () => {
   const { currentTheme } = useTheme();
   const { settings } = useSettings();
   const flashListRef = useRef<any>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [traktSyncMode, setTraktSyncMode] = useState<'off' | 'manual' | 'automatic'>('off');
+  const hasAutoSyncedThisSession = useRef(false);
 
   const scrollToTop = useCallback(() => {
     flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -314,6 +321,29 @@ const LibraryScreen = () => {
     ratedContent: simklRatedContent,
     loadAllCollections: loadSimklCollections
   } = useSimklContext();
+
+  // Load Trakt sync mode preferences
+  useEffect(() => {
+    const loadSyncMode = async () => {
+      try {
+        const mode = await mmkvStorage.getItem(TRAKT_LIBRARY_SYNC_MODE_KEY);
+        if (mode === 'manual' || mode === 'automatic') {
+          setTraktSyncMode(mode);
+        } else {
+          setTraktSyncMode('off');
+        }
+      } catch (error) {
+        logger.error('[LibraryScreen] Failed to load sync mode:', error);
+        setTraktSyncMode('off');
+      }
+    };
+    
+    loadSyncMode();
+
+    // Reload when screen is focused (to pick up changes from settings)
+    const unsubscribe = navigation.addListener('focus', loadSyncMode);
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     const applyStatusBarConfig = () => {
@@ -422,6 +452,248 @@ const LibraryScreen = () => {
     };
   }, [navigation]);
 
+  // Refs to always have access to latest context values (avoids stale closure)
+  const watchlistMoviesRef = useRef(watchlistMovies);
+  const watchlistShowsRef = useRef(watchlistShows);
+  
+  useEffect(() => {
+    watchlistMoviesRef.current = watchlistMovies;
+    watchlistShowsRef.current = watchlistShows;
+  }, [watchlistMovies, watchlistShows]);
+
+  // Sync Trakt watchlist to local library
+  const syncTraktWatchlistToLibrary = useCallback(async () => {
+    if (!traktAuthenticated) {
+      showError('Sync Failed', 'Please connect to Trakt first');
+      return;
+    }
+
+    setIsSyncing(true);
+    logger.log('[LibraryScreen] Starting Trakt watchlist sync...');
+
+    try {
+      // Load Trakt data fresh before syncing
+      logger.log('[LibraryScreen] Loading Trakt collections...');
+      await loadAllCollections();
+      
+      // Wait for React to process state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Access FRESH values from refs (updated by useEffect)
+      const currentMovies = watchlistMoviesRef.current;
+      const currentShows = watchlistShowsRef.current;
+      
+      logger.log(`[LibraryScreen] Syncing ${currentMovies?.length || 0} movies and ${currentShows?.length || 0} shows`);
+      
+      const hasMovies = currentMovies && currentMovies.length > 0;
+      const hasShows = currentShows && currentShows.length > 0;
+
+      if (!hasMovies && !hasShows) {
+        logger.error('[LibraryScreen] No Trakt watchlist data available');
+        showError(
+          'Sync Failed',
+          'No items found in your Trakt watchlist. Add some movies or shows to your Trakt watchlist first.'
+        );
+        return;
+      }
+
+      const tmdbService = TMDBService.getInstance();
+      let addedCount = 0;
+      let updatedCount = 0;
+      let removedCount = 0;
+
+      const currentLibraryItems = await catalogService.getLibraryItems();
+      const traktWatchlistImdbIds = new Set<string>();
+
+      // Collect IMDb IDs from watchlist (using FRESH refs)
+      if (currentMovies) {
+        currentMovies.forEach(item => {
+          if (item.movie?.ids?.imdb) {
+            traktWatchlistImdbIds.add(item.movie.ids.imdb);
+          }
+        });
+      }
+
+      if (currentShows) {
+        currentShows.forEach(item => {
+          if (item.show?.ids?.imdb) {
+            traktWatchlistImdbIds.add(item.show.ids.imdb);
+          }
+        });
+      }
+
+      // Remove items not in watchlist
+      for (const libraryItem of currentLibraryItems) {
+        const imdbId = libraryItem.id;
+        if (imdbId.startsWith('tt') && !traktWatchlistImdbIds.has(imdbId)) {
+          logger.log(`[LibraryScreen] Removing: ${libraryItem.name}`);
+          await catalogService.removeFromLibrary(libraryItem.type, imdbId);
+          removedCount++;
+        }
+      }
+
+      // Add/update movies (using FRESH refs)
+      if (currentMovies) {
+        for (const watchlistItem of currentMovies) {
+          const movie = watchlistItem.movie;
+          if (!movie?.ids?.imdb) continue;
+
+          const imdbId = movie.ids.imdb;
+          const existingItem = currentLibraryItems.find(
+            item => item.id === imdbId && item.type === 'movie'
+          );
+
+          let posterUrl = 'https://via.placeholder.com/300x450/cccccc/666666?text=No+Image';
+          let overview = '';
+          let genres: string[] = [];
+          let year = movie.year;
+
+          try {
+            const tmdbId = await tmdbService.findTMDBIdByIMDB(imdbId);
+            if (tmdbId) {
+              const details = await tmdbService.getMovieDetails(String(tmdbId));
+              if (details) {
+                if (details.poster_path) {
+                  posterUrl = tmdbService.getImageUrl(details.poster_path, 'w500') || posterUrl;
+                }
+                overview = details.overview || '';
+                genres = details.genres?.map((g: any) => g.name) || [];
+                year = details.release_date ? new Date(details.release_date).getFullYear() : year;
+              }
+            }
+          } catch (error) {
+            logger.error(`Failed to fetch TMDB data for ${movie.title}:`, error);
+          }
+
+          if (posterUrl === 'https://via.placeholder.com/300x450/cccccc/666666?text=No+Image' && movie.images) {
+            const traktPosterUrl = TraktService.getTraktPosterUrl(movie.images);
+            if (traktPosterUrl) posterUrl = traktPosterUrl;
+          }
+
+          const contentToAdd: StreamingContent = {
+            id: imdbId,
+            type: 'movie',
+            name: movie.title,
+            poster: posterUrl,
+            posterShape: 'poster',
+            year,
+            description: overview,
+            genres,
+            imdbRating: undefined,
+            inLibrary: true,
+          };
+
+          if (existingItem) {
+            if (existingItem.poster !== posterUrl) {
+              await catalogService.addToLibrary(contentToAdd);
+              updatedCount++;
+            }
+          } else {
+            await catalogService.addToLibrary(contentToAdd);
+            addedCount++;
+          }
+        }
+      }
+
+      // Add/update shows (using FRESH refs)
+      if (currentShows) {
+        for (const watchlistItem of currentShows) {
+          const show = watchlistItem.show;
+          if (!show?.ids?.imdb) continue;
+
+          const imdbId = show.ids.imdb;
+          const existingItem = currentLibraryItems.find(
+            item => item.id === imdbId && item.type === 'series'
+          );
+
+          let posterUrl = 'https://via.placeholder.com/300x450/cccccc/666666?text=No+Image';
+          let overview = '';
+          let genres: string[] = [];
+          let year = show.year;
+
+          try {
+            const tmdbId = await tmdbService.findTMDBIdByIMDB(imdbId);
+            if (tmdbId) {
+              const details = await tmdbService.getTVShowDetails(tmdbId);
+              if (details) {
+                if (details.poster_path) {
+                  posterUrl = tmdbService.getImageUrl(details.poster_path, 'w500') || posterUrl;
+                }
+                overview = details.overview || '';
+                genres = details.genres?.map((g: any) => g.name) || [];
+                year = details.first_air_date ? new Date(details.first_air_date).getFullYear() : year;
+              }
+            }
+          } catch (error) {
+            logger.error(`Failed to fetch TMDB data for ${show.title}:`, error);
+          }
+
+          if (posterUrl === 'https://via.placeholder.com/300x450/cccccc/666666?text=No+Image' && show.images) {
+            const traktPosterUrl = TraktService.getTraktPosterUrl(show.images);
+            if (traktPosterUrl) posterUrl = traktPosterUrl;
+          }
+
+          const contentToAdd: StreamingContent = {
+            id: imdbId,
+            type: 'series',
+            name: show.title,
+            poster: posterUrl,
+            posterShape: 'poster',
+            year,
+            description: overview,
+            genres,
+            imdbRating: undefined,
+            inLibrary: true,
+          };
+
+          if (existingItem) {
+            if (existingItem.poster !== posterUrl) {
+              await catalogService.addToLibrary(contentToAdd);
+              updatedCount++;
+            }
+          } else {
+            await catalogService.addToLibrary(contentToAdd);
+            addedCount++;
+          }
+        }
+      }
+
+      // Show result
+      if (addedCount > 0 || updatedCount > 0 || removedCount > 0) {
+        let message = '';
+        if (addedCount > 0) message += `Added ${addedCount}`;
+        if (updatedCount > 0) message += `${message ? ', updated ' : 'Updated '}${updatedCount}`;
+        if (removedCount > 0) message += `${message ? ', removed ' : 'Removed '}${removedCount}`;
+        showInfo('Sync Complete', message);
+        logger.log(`[LibraryScreen] Sync complete: ${message}`);
+      } else {
+        showInfo('Sync Complete', 'Library is up to date');
+      }
+    } catch (error) {
+      logger.error('[LibraryScreen] Sync failed:', error);
+      showError('Sync Failed', 'Unable to sync. Please try again.');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [traktAuthenticated, loadAllCollections, showInfo, showError]);
+  // Removed watchlistMovies and watchlistShows from deps - we access via refs!
+
+  // Automatic sync on first visit
+  useEffect(() => {
+    if (
+      traktSyncMode === 'automatic' &&
+      traktAuthenticated &&
+      !hasAutoSyncedThisSession.current &&
+      !showTraktContent &&
+      !showSimklContent
+    ) {
+      hasAutoSyncedThisSession.current = true;
+      logger.log('[LibraryScreen] Performing automatic sync');
+      syncTraktWatchlistToLibrary();
+    }
+
+  }, [traktSyncMode, traktAuthenticated, showTraktContent, showSimklContent, syncTraktWatchlistToLibrary]);
+
   const filteredItems = libraryItems.filter(item => {
     if (filter === 'movies') return item.type === 'movie';
     if (filter === 'series') return item.type === 'series';
@@ -465,7 +737,7 @@ const LibraryScreen = () => {
     ];
 
     return folders.filter(folder => folder.itemCount > 0);
-  }, [traktAuthenticated, watchedMovies, watchedShows, watchlistMovies, watchlistShows, collectionMovies, collectionShows, continueWatching, ratedContent]);
+  }, [traktAuthenticated, watchedMovies, watchedShows, watchlistMovies, watchlistShows, collectionMovies, collectionShows, continueWatching, ratedContent, t]);
 
   const simklFolders = useMemo((): TraktFolder[] => {
     if (!simklAuthenticated) return [];
@@ -1209,6 +1481,68 @@ const LibraryScreen = () => {
     );
   };
 
+  const loadMalList = useCallback(async (isLoadMore = false) => {
+    if (malLoading || (isLoadMore && !hasMoreMal)) return;
+    
+    const currentOffset = isLoadMore ? malOffset : 0;
+    setMalLoading(true);
+    try {
+      const response = await MalApiService.getUserList(undefined, currentOffset, 100);
+      if (isLoadMore) {
+          setMalMalList(prev => [...prev, ...response.data]);
+      } else {
+          setMalMalList(response.data);
+      }
+      setMalOffset(currentOffset + response.data.length);
+      setHasMoreMal(!!response.paging.next);
+    } catch (error) {
+      logger.error('Failed to load MAL list:', error);
+    } finally {
+      setMalLoading(false);
+    }
+  }, [malLoading, malOffset, hasMoreMal]);
+
+  const renderMalItem = ({ item }: { item: MalAnimeNode }) => (
+    <TouchableOpacity
+      style={[styles.itemContainer, { width: itemWidth }]}
+      onPress={() => navigation.navigate('Metadata', { 
+          id: `mal:${item.node.id}`, 
+          type: item.node.media_type === 'movie' ? 'movie' : 'series' 
+      })}
+      activeOpacity={0.7}
+    >
+      <View>
+        <View style={[styles.posterContainer, { shadowColor: currentTheme.colors.black, borderRadius: settings.posterBorderRadius ?? 12 }]}>
+          <FastImage
+            source={{ uri: item.node.main_picture?.large || item.node.main_picture?.medium || 'https://via.placeholder.com/300x450' }}
+            style={[styles.poster, { borderRadius: settings.posterBorderRadius ?? 12 }]}
+            resizeMode={FastImage.resizeMode.cover}
+          />
+          <View style={styles.malBadge}>
+             <Text style={styles.malBadgeText}>{item.list_status.status.replace('_', ' ')}</Text>
+          </View>
+          <View style={styles.progressBarContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { 
+                      width: `${(item.list_status.num_episodes_watched / (item.node.num_episodes || 1)) * 100}%`, 
+                      backgroundColor: '#2E51A2' 
+                  }
+                ]}
+              />
+          </View>
+        </View>
+        <Text style={[styles.cardTitle, { color: currentTheme.colors.mediumEmphasis }]} numberOfLines={2}>
+          {item.node.title}
+        </Text>
+        <Text style={[styles.malScore, { color: '#F5C518' }]}>
+           ★ {item.list_status.score > 0 ? item.list_status.score : '-'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   const renderSimklCollectionFolder = ({ folder }: { folder: TraktFolder }) => (
     <TouchableOpacity
       style={[styles.itemContainer, { width: itemWidth }]}
@@ -1236,6 +1570,79 @@ const LibraryScreen = () => {
       </View>
     </TouchableOpacity>
   );
+
+  const renderMalContent = () => {
+    if (malLoading && malList.length === 0) return <SkeletonLoader />;
+    
+    if (malList.length === 0) {
+        return (
+            <View style={styles.emptyContainer}>
+                <MaterialIcons name="library-books" size={64} color={currentTheme.colors.lightGray} />
+                <Text style={[styles.emptyText, { color: currentTheme.colors.white }]}>Your MAL list is empty</Text>
+                <TouchableOpacity
+                    style={[styles.exploreButton, { backgroundColor: currentTheme.colors.primary }]}
+                    onPress={() => loadMalList()}
+                >
+                    <Text style={[styles.exploreButtonText, { color: currentTheme.colors.white }]}>Refresh</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const grouped = {
+      watching: malList.filter(i => i.list_status.status === 'watching'),
+      plan_to_watch: malList.filter(i => i.list_status.status === 'plan_to_watch'),
+      completed: malList.filter(i => i.list_status.status === 'completed'),
+      dropped: malList.filter(i => i.list_status.status === 'dropped'),
+      on_hold: malList.filter(i => i.list_status.status === 'on_hold'),
+    };
+
+    const sections = [
+      { key: 'watching', title: 'Watching', data: grouped.watching },
+      { key: 'plan_to_watch', title: 'Plan to Watch', data: grouped.plan_to_watch },
+      { key: 'completed', title: 'Completed', data: grouped.completed },
+      { key: 'dropped', title: 'Dropped', data: grouped.dropped },
+      { key: 'on_hold', title: 'On Hold', data: grouped.on_hold },
+    ];
+
+    return (
+      <ScrollView 
+        contentContainerStyle={[styles.listContainer, { paddingBottom: insets.bottom + 80 }]}
+        showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+            if (isCloseToBottom(nativeEvent) && hasMoreMal) {
+                loadMalList(true);
+            }
+        }}
+        scrollEventThrottle={400}
+      >
+        {sections.map(section => (
+          section.data.length > 0 && (
+            <View key={section.key} style={styles.malSectionContainer}>
+              <Text style={[styles.malSectionHeader, { color: currentTheme.colors.highEmphasis }]}>
+                {section.title} <Text style={{ color: currentTheme.colors.mediumEmphasis, fontSize: 14 }}>({section.data.length})</Text>
+              </Text>
+              <View style={styles.malSectionGrid}>
+                {section.data.map(item => (
+                  <View key={item.node.id} style={{ marginBottom: 16 }}>
+                    {renderMalItem({ item })}
+                  </View>
+                ))}
+              </View>
+            </View>
+          )
+        ))}
+        {malLoading && (
+           <ActivityIndicator color={currentTheme.colors.primary} style={{ marginTop: 20 }} />
+        )}
+      </ScrollView>
+    );
+  };
+
+  const isCloseToBottom = ({ layoutMeasurement, contentOffset, contentSize }: any) => {
+    const paddingToBottom = 20;
+    return layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+  };
 
   const renderSimklContent = () => {
     if (simklLoading) {
@@ -1335,7 +1742,7 @@ const LibraryScreen = () => {
     );
   };
 
-  const renderFilter = (filterType: 'trakt' | 'simkl' | 'movies' | 'series', label: string) => {
+  const renderFilter = (filterType: 'trakt' | 'simkl' | 'movies' | 'series' | 'mal', label: string, iconName?: keyof typeof MaterialIcons.glyphMap) => {
     const isActive = filter === filterType;
 
     return (
@@ -1358,7 +1765,7 @@ const LibraryScreen = () => {
           }
           if (filterType === 'simkl') {
             if (!simklAuthenticated) {
-              navigation.navigate('Settings');
+              navigation.navigate('SimklSettings');
             } else {
               setShowSimklContent(true);
               setSelectedSimklFolder(null);
@@ -1366,11 +1773,17 @@ const LibraryScreen = () => {
             }
             return;
           }
+          if (filterType === 'mal') {
+              navigation.navigate('MalLibrary');
+              return;
+          }
+          setShowTraktContent(false);
+          setShowSimklContent(false);
           setFilter(filterType);
         }}
         activeOpacity={0.7}
-      >
-        <Text
+       >
+         <Text
           style={[
             styles.filterText,
             { color: currentTheme.colors.mediumGray },
@@ -1382,6 +1795,7 @@ const LibraryScreen = () => {
       </TouchableOpacity>
     );
   };
+
 
   const renderContent = () => {
     if (loading) {
@@ -1438,6 +1852,9 @@ const LibraryScreen = () => {
     return (Platform.OS === 'ios' ? (Platform as any).isPad === true : smallestDimension >= 768);
   }, [width, height]);
 
+  // Show sync button only when mode is 'manual' and viewing local library
+  const shouldShowSyncButton = traktSyncMode === 'manual' && !showTraktContent && !showSimklContent && traktAuthenticated;
+
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.colors.darkBackground }]}>
       <ScreenHeader
@@ -1475,16 +1892,45 @@ const LibraryScreen = () => {
 
       <View style={[styles.contentContainer, { backgroundColor: currentTheme.colors.darkBackground }]}>
         {!showTraktContent && !showSimklContent && (
-          <View style={styles.filtersContainer}>
-            {renderFilter('trakt', 'Trakt')}
-            {renderFilter('simkl', 'SIMKL')}
-            {renderFilter('movies', t('search.movies'))}
-            {renderFilter('series', t('search.tv_shows'))}
-          </View>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.filtersContainer}
+            contentContainerStyle={styles.filtersContent}
+          >
+           {renderFilter('trakt', 'Trakt')}
+           {renderFilter('simkl', 'SIMKL')}
+           {renderFilter('mal', 'MAL')}
+           {renderFilter('movies', t('search.movies'))}
+           {renderFilter('series', t('search.tv_shows'))}
+          </ScrollView>
         )}
 
-        {showTraktContent ? renderTraktContent() : showSimklContent ? renderSimklContent() : renderContent()}
+        {showTraktContent ? renderTraktContent() : showSimklContent ? renderSimklContent() : (filter === 'mal' ? renderMalContent() : renderContent())}
       </View>
+
+      {/* Sync FAB - Bottom Right (only in manual mode) */}
+      {shouldShowSyncButton && (
+        <TouchableOpacity
+          style={[
+            styles.syncFab,
+            {
+              backgroundColor: currentTheme.colors.primary,
+              bottom: insets.bottom + 80,
+              shadowColor: currentTheme.colors.black,
+            }
+          ]}
+          onPress={syncTraktWatchlistToLibrary}
+          activeOpacity={0.8}
+          disabled={isSyncing}
+        >
+          {isSyncing ? (
+            <ActivityIndicator color={currentTheme.colors.white} size="small" />
+          ) : (
+            <MaterialIcons name="sync" size={24} color={currentTheme.colors.white} />
+          )}
+        </TouchableOpacity>
+      )}
 
       {selectedItem && (
         <DropUpMenu
@@ -1558,14 +2004,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filtersContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 8,
+    flexGrow: 0,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
     zIndex: 10,
+  },
+  filtersContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
   },
   filterButton: {
     flexDirection: 'row',
@@ -1830,6 +2279,54 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  malBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  malBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  malScore: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  malSectionContainer: {
+    marginBottom: 24,
+  },
+  malSectionHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  malSectionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  syncFab: {
+    position: 'absolute',
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });
 

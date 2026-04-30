@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { AppState } from 'react-native';
 import accountService, { AuthUser } from '../services/AccountService';
 
 type AccountContextValue = {
@@ -18,21 +19,37 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState(true);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    // Initial user load
-    const loadUser = async () => {
-      try {
-        const u = await accountService.getCurrentUser();
-        setUser(u);
-      } catch (error) {
-        console.warn('[AccountContext] Failed to load user:', error);
-      } finally {
+  const syncCurrentUser = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    try {
+      const u = await accountService.getCurrentUser();
+      setUser(u);
+    } catch (error) {
+      console.warn('[AccountContext] Failed to load user:', error);
+      setUser(null);
+    } finally {
+      if (showLoading) {
         setLoading(false);
       }
-    };
-
-    loadUser();
+    }
   }, []);
+
+  useEffect(() => {
+    syncCurrentUser(true);
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        syncCurrentUser(false);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [syncCurrentUser]);
 
   const value = useMemo<AccountContextValue>(() => ({
     user,

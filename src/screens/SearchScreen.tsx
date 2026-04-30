@@ -10,7 +10,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -46,10 +46,10 @@ import {
   MAX_RECENT_SEARCHES,
 } from '../components/search/searchUtils';
 import { searchStyles as styles } from '../components/search/searchStyles';
-import { SearchAnimation } from '../components/search/SearchAnimation';
 import { AddonSection } from '../components/search/AddonSection';
 import { DiscoverSection } from '../components/search/DiscoverSection';
 import { DiscoverBottomSheets } from '../components/search/DiscoverBottomSheets';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const { width } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -63,6 +63,7 @@ const SearchScreen = () => {
   const { t } = useTranslation();
   const { settings } = useSettings();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const route = useRoute<any>();
   const { addToWatchlist, removeFromWatchlist, addToCollection, removeFromCollection, isInWatchlist, isInCollection } = useTraktContext();
   const { showSuccess, showInfo } = useToast();
   const [query, setQuery] = useState('');
@@ -83,7 +84,7 @@ const SearchScreen = () => {
   // Discover section state
   const [discoverCatalogs, setDiscoverCatalogs] = useState<DiscoverCatalog[]>([]);
   const [selectedCatalog, setSelectedCatalog] = useState<DiscoverCatalog | null>(null);
-  const [selectedDiscoverType, setSelectedDiscoverType] = useState<'movie' | 'series'>('movie');
+  const [selectedDiscoverType, setSelectedDiscoverType] = useState<string>('movie');
   const [selectedDiscoverGenre, setSelectedDiscoverGenre] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -126,7 +127,7 @@ const SearchScreen = () => {
       try {
         // Load saved type
         const savedType = await mmkvStorage.getItem(DISCOVER_TYPE_KEY);
-        if (savedType && (savedType === 'movie' || savedType === 'series')) {
+        if (savedType) {
           setSelectedDiscoverType(savedType);
         }
 
@@ -140,7 +141,7 @@ const SearchScreen = () => {
   }, []);
 
   // Save discover settings when they change
-  const saveDiscoverSettings = useCallback(async (type: 'movie' | 'series', catalog: DiscoverCatalog | null, genre: string | null) => {
+  const saveDiscoverSettings = useCallback(async (type: string, catalog: DiscoverCatalog | null, genre: string | null) => {
     try {
       // Save type
       await mmkvStorage.setItem(DISCOVER_TYPE_KEY, type);
@@ -153,18 +154,13 @@ const SearchScreen = () => {
           type: catalog.type,
         };
         await mmkvStorage.setItem(DISCOVER_CATALOG_KEY, JSON.stringify(catalogData));
-      } else {
-        // Clear catalog if null
-        await mmkvStorage.removeItem(DISCOVER_CATALOG_KEY);
       }
 
-      // Save genre - use empty string to indicate "All genres"
-      // This way we distinguish between "not set" and "All genres"
+      // Save genre
       if (genre) {
         await mmkvStorage.setItem(DISCOVER_GENRE_KEY, genre);
       } else {
-        // Save empty string to indicate "All genres" is selected
-        await mmkvStorage.setItem(DISCOVER_GENRE_KEY, '');
+        await mmkvStorage.removeItem(DISCOVER_GENRE_KEY);
       }
     } catch (error) {
       logger.error('Failed to save discover settings:', error);
@@ -193,21 +189,11 @@ const SearchScreen = () => {
 
               // Load saved genre
               const savedGenre = await mmkvStorage.getItem(DISCOVER_GENRE_KEY);
-              if (savedGenre !== null) {
-                if (savedGenre === '') {
-                  // Empty string means "All genres" was selected
-                  setSelectedDiscoverGenre(null);
-                } else if (foundCatalog.genres.includes(savedGenre)) {
-                  setSelectedDiscoverGenre(savedGenre);
-                } else if (foundCatalog.genres.length > 0) {
-                  // Set first genre as default if saved genre not available
-                  setSelectedDiscoverGenre(foundCatalog.genres[0]);
-                }
-              } else {
-                // No saved genre, default to first genre
-                if (foundCatalog.genres.length > 0) {
-                  setSelectedDiscoverGenre(foundCatalog.genres[0]);
-                }
+              if (savedGenre && foundCatalog.genres.includes(savedGenre)) {
+                setSelectedDiscoverGenre(savedGenre);
+              } else if (foundCatalog.genres.length > 0) {
+                // Set first genre as default if saved genre not available
+                setSelectedDiscoverGenre(foundCatalog.genres[0]);
               }
               return;
             }
@@ -281,10 +267,8 @@ const SearchScreen = () => {
         if (isMounted.current) {
           const allCatalogs: DiscoverCatalog[] = [];
           for (const [type, catalogs] of Object.entries(filters.catalogsByType)) {
-            if (type === 'movie' || type === 'series') {
-              for (const catalog of catalogs) {
-                allCatalogs.push({ ...catalog, type });
-              }
+            for (const catalog of catalogs) {
+              allCatalogs.push({ ...catalog, type });
             }
           }
           setDiscoverCatalogs(allCatalogs);
@@ -484,6 +468,13 @@ const SearchScreen = () => {
   useFocusEffect(
     useCallback(() => {
       isMounted.current = true;
+      
+      // Check for route query param
+      if (route.params?.query && route.params.query !== query) {
+          setQuery(route.params.query);
+          // The query effect will trigger debouncedSearch automatically
+      }
+
       return () => {
         isMounted.current = false;
         if (liveSearchHandle.current) {
@@ -492,7 +483,7 @@ const SearchScreen = () => {
         }
         debouncedSearch.cancel();
       };
-    }, [debouncedSearch])
+    }, [debouncedSearch, route.params?.query])
   );
 
   const performLiveSearch = async (searchQuery: string) => {
@@ -524,7 +515,14 @@ const SearchScreen = () => {
 
         setResults(prev => {
           if (!isMounted.current) return prev;
-          const getRank = (id: string) => addonOrderRankRef.current[id] ?? Number.MAX_SAFE_INTEGER;
+          // Use catalogIndex from the section for deterministic ordering.
+          // Falls back to addonOrderRankRef for legacy single-catalog sections.
+          const getRank = (section: AddonSearchResults) => {
+            if (section.catalogIndex !== undefined) return section.catalogIndex;
+            if (addonOrderRankRef.current[section.addonId] !== undefined) return addonOrderRankRef.current[section.addonId] * 1000;
+            const baseAddonId = section.addonId.includes('||') ? section.addonId.split('||')[0] : section.addonId;
+            return (addonOrderRankRef.current[baseAddonId] ?? Number.MAX_SAFE_INTEGER - 1) * 1000 + 500;
+          };
           const existingIndex = prev.byAddon.findIndex(s => s.addonId === section.addonId);
 
           if (existingIndex >= 0) {
@@ -533,10 +531,10 @@ const SearchScreen = () => {
             return { byAddon: copy, allResults: prev.allResults };
           }
 
-          const insertRank = getRank(section.addonId);
+          const insertRank = getRank(section);
           let insertAt = prev.byAddon.length;
           for (let i = 0; i < prev.byAddon.length; i++) {
-            if (getRank(prev.byAddon[i].addonId) > insertRank) {
+            if (getRank(prev.byAddon[i]) > insertRank) {
               insertAt = i;
               break;
             }
@@ -643,9 +641,10 @@ const SearchScreen = () => {
   };
 
   const availableGenres = useMemo(() => selectedCatalog?.genres || [], [selectedCatalog]);
+  const availableTypes = useMemo(() => [...new Set(discoverCatalogs.map(c => c.type))], [discoverCatalogs]);
   const filteredCatalogs = useMemo(() => discoverCatalogs.filter(c => c.type === selectedDiscoverType), [discoverCatalogs, selectedDiscoverType]);
 
-  const handleTypeSelect = (type: 'movie' | 'series') => {
+  const handleTypeSelect = (type: string) => {
     setSelectedDiscoverType(type);
 
     // Save type setting
@@ -703,7 +702,7 @@ const SearchScreen = () => {
   const handleGenreSelect = (genre: string | null) => {
     setSelectedDiscoverGenre(genre);
 
-    // Save genre setting - this will save empty string for null (All genres)
+    // Save genre setting
     saveDiscoverSettings(selectedDiscoverType, selectedCatalog, genre);
 
     genreSheetRef.current?.dismiss();
@@ -762,7 +761,9 @@ const SearchScreen = () => {
 
       <View style={styles.contentContainer}>
         {searching && results.byAddon.length === 0 ? (
-          <SearchAnimation />
+          <View style={styles.emptyContainer}>
+            <LoadingSpinner size="large" />
+          </View>
         ) : searched && !hasResultsToShow && !searching ? (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="search-off" size={64} color={currentTheme.colors.lightGray} />
@@ -900,6 +901,7 @@ const SearchScreen = () => {
         selectedDiscoverGenre={selectedDiscoverGenre}
         filteredCatalogs={filteredCatalogs}
         availableGenres={availableGenres}
+        availableTypes={availableTypes}
         onTypeSelect={handleTypeSelect}
         onCatalogSelect={handleCatalogSelect}
         onGenreSelect={handleGenreSelect}
